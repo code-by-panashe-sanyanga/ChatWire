@@ -1,0 +1,32 @@
+{
+  "communities": [
+    {
+      "id": "dev-hub",
+      "name": "Dev Hub",
+      "abbr": "DH",
+      "channels": [
+        { "id": "general", "name": "general", "type": "text", "topic": "Team chat, standups, and random wins" },
+        { "id": "projects", "name": "projects", "type": "text", "topic": "Ship updates, PRs, and blockers" },
+        { "id": "help", "name": "help", "type": "text", "topic": "Ask anything, no silly questions" }
+      ]
+    },
+    {
+      "id": "mmu-year3",
+      "name": "MMU Year 3",
+      "abbr": "M3",
+      "channels": [
+        { "id": "coursework", "name": "coursework", "type": "text", "topic": "Deadlines, modules, and group work" },
+        { "id": "random", "name": "random", "type": "text", "topic": "Off-topic, memes welcome" }
+      ]
+    },
+    {
+      "id": "gaming",
+      "name": "Gaming Lounge",
+      "abbr": "GL",
+      "channels": [
+        { "id": "lfg", "name": "looking-for-group", "type": "text", "topic": "Find a squad" },
+        { "id": "clips", "name": "clips", "type": "text", "topic": "Drop your best moments" }
+      ]
+    }
+  ]
+}
