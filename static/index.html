@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ChatWire</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+  <!-- Sign-in -->
+  <section id="setup" class="setup">
+    <div class="setup-card">
+      <h1>ChatWire</h1>
+      <p class="setup-note">Log in or register to join communities and channels.</p>
+
+      <div class="auth-tabs">
+        <button type="button" id="tab-login" class="auth-tab active">Log in</button>
+        <button type="button" id="tab-register" class="auth-tab">Register</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label>Username <input id="login-username" type="text" autocomplete="username" value="demo" /></label>
+        <label>Password <input id="login-password" type="password" autocomplete="current-password" value="demo123" /></label>
+        <button type="submit" class="btn-primary">Log in</button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <label>Username <input id="reg-username" type="text" autocomplete="username" maxlength="20" /></label>
+        <label>Display name <input id="reg-display" type="text" autocomplete="nickname" maxlength="32" /></label>
+        <label>Password <input id="reg-password" type="password" autocomplete="new-password" /></label>
+        <button type="submit" class="btn-primary">Create account</button>
+      </form>
+
+      <p id="auth-msg" class="auth-msg" role="status"></p>
+      <p class="setup-hint">Demo account: <strong>demo</strong> / <strong>demo123</strong></p>
+    </div>
+  </section>
+
+  <div id="app" class="app hidden">
+    <nav class="server-rail" id="server-rail" aria-label="Communities"></nav>
+
+    <aside class="sidebar" aria-label="Channels and members">
+      <header class="community-header">
+        <span id="community-name">Community</span>
+        <button type="button" id="rename-community" class="btn-icon" title="Rename community">Rename</button>
+      </header>
+
+      <div class="sidebar-scroll">
+        <section class="channel-section">
+          <div class="channel-section-head">
+            <h2 class="sidebar-label">Text Channels</h2>
+            <button type="button" id="rename-channel" class="btn-icon small" title="Rename this channel">Rename</button>
+          </div>
+          <ul id="channel-list" class="channel-list"></ul>
+        </section>
+
+        <section class="members-section">
+          <h2 class="sidebar-label">Online — <span id="online-count">0</span></h2>
+          <ul id="online-list" class="member-list"></ul>
+          <h2 class="sidebar-label">Friends</h2>
+          <ul id="friends-list" class="member-list"></ul>
+        </section>
+      </div>
+
+      <footer class="user-panel">
+        <div class="avatar sm" id="my-avatar">?</div>
+        <div class="user-meta">
+          <span id="my-name" class="user-name">—</span>
+          <span id="status" class="status-text">offline</span>
+        </div>
+        <button type="button" id="edit-name" class="btn-icon" title="Edit display name">Name</button>
+        <button type="button" id="change-password" class="btn-icon" title="Change password">Password</button>
+      </footer>
+    </aside>
+
+    <main class="chat-main">
+      <header class="channel-header">
+        <span class="hash">#</span>
+        <span id="channel-title">general</span>
+        <span id="typing-indicator" class="typing-indicator" aria-live="polite"></span>
+      </header>
+      <ul id="log" class="message-log" aria-live="polite"></ul>
+      <form id="form" class="composer">
+        <label class="sr-only" for="text">Message</label>
+        <input id="text" type="text" autocomplete="off" placeholder="Message #general" />
+      </form>
+    </main>
+  </div>
+
+  <!-- Change password modal -->
+  <div id="password-modal" class="modal hidden" role="dialog" aria-labelledby="password-modal-title">
+    <div class="modal-card">
+      <h2 id="password-modal-title">Change password</h2>
+      <label>Current password <input id="pw-current" type="password" autocomplete="current-password" /></label>
+      <label>New password <input id="pw-new" type="password" autocomplete="new-password" /></label>
+      <label>Confirm new password <input id="pw-confirm" type="password" autocomplete="new-password" /></label>
+      <p id="pw-msg" class="auth-msg"></p>
+      <div class="modal-actions">
+        <button type="button" id="pw-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="pw-save" class="btn-primary inline">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
