@@ -3,9 +3,9 @@
 **Built:** May 2026  
 **Author:** [Panashe Sanyanga](https://github.com/code-by-panashe-sanyanga)
 
-A real-time chat app built with Flask-SocketIO. Discord-style layout — communities on the left rail, text channels in a sidebar, online users and a friends list, then the main chat. Open two tabs with different names to test live messaging.
+A real-time chat app built with Flask-SocketIO. Discord-style layout communities on the left rail, text channels in a sidebar, online users and a friends list, then the main chat. Open two tabs with different names to test live messaging.
 
-Everything until ShopSphere was request/response HTTP. ChatWire was where I tried the server pushing updates — Flask-SocketIO on the backend, plain HTML/CSS/JS on the front.
+Everything until ShopSphere was request/response HTTP. ChatWire was where I tried the server pushing updates Flask-SocketIO on the backend, plain HTML/CSS/JS on the front.
 
 ---
 
