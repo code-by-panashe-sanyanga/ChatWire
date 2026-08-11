@@ -158,6 +158,8 @@ def bootstrap():
         seed.seed_messages()
         seed.seed_feed()
         seed.seed_stories()
+        posts = db.list_feed(DEMO_USERNAME, limit=1).get("posts") or []
+        print(f"demo timeline ready: {len(posts)}+ posts visible for {DEMO_USERNAME}")
     except Exception as err:
         print(f"WARNING: demo seed skipped: {err}", file=__import__("sys").stderr)
 

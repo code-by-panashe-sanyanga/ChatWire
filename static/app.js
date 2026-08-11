@@ -641,6 +641,7 @@ function formatRelative(iso) {
 function openFeed() {
   feedMode = true;
   document.getElementById("app").classList.add("feed-mode");
+  document.getElementById("feed-view").classList.remove("hidden");
   document.getElementById("open-feed").classList.add("active");
   closeMobileDrawers();
   setMobileNav("home");
@@ -652,6 +653,7 @@ function openFeed() {
 function closeFeed() {
   feedMode = false;
   document.getElementById("app").classList.remove("feed-mode");
+  document.getElementById("feed-view").classList.add("hidden");
   document.getElementById("open-feed").classList.remove("active");
   setMobileNav("chat");
 }

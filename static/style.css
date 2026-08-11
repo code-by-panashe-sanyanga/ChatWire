@@ -350,6 +350,9 @@ kbd {
   overflow: hidden;
 }
 
+/* feed-view starts hidden via .feed-view { display: none }; do not also use .hidden
+   (.hidden is !important and would block feed-mode from showing the timeline) */
+
 .feed-view {
   display: none;
   flex-direction: column;
