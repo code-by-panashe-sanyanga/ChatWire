@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script src="theme-boot.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
@@ -102,9 +103,7 @@
           </button>
         </div>
         <div class="user-actions">
-          <button type="button" id="edit-name" class="btn-icon" title="Edit display name">Aa</button>
-          <button type="button" id="change-password" class="btn-icon" title="Change password">🔑</button>
-          <button type="button" id="toggle-sound" class="btn-icon" title="Toggle notification sound" aria-pressed="true">🔔</button>
+          <button type="button" id="open-settings" class="settings-link" title="Settings">Settings</button>
         </div>
       </footer>
     </aside>
@@ -136,7 +135,15 @@
           <span class="call-live">In call</span>
           <span id="call-people">Nobody yet</span>
         </div>
-        <button type="button" id="leave-call" class="btn-header danger">Leave</button>
+        <div class="call-banner-actions">
+          <button type="button" id="call-toggle-mic" class="btn-header" title="Mute or unmute mic" aria-pressed="true">Mic on</button>
+          <button type="button" id="call-toggle-cam" class="btn-header" title="Turn camera on or off" aria-pressed="false">Cam off</button>
+          <button type="button" id="leave-call" class="btn-header danger">Leave</button>
+        </div>
+      </div>
+
+      <div id="call-stage" class="call-stage hidden" aria-label="Call video">
+        <div id="call-tiles" class="call-tiles"></div>
       </div>
 
       <div class="chat-body">
@@ -295,6 +302,75 @@
       </div>
     </div>
   </div>
+
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-labelledby="settings-modal-title">
+    <div class="modal-card settings-card">
+      <h2 id="settings-modal-title">Settings</h2>
+      <p class="modal-desc">Account and appearance for this browser.</p>
+
+      <div class="settings-row">
+        <div>
+          <strong>Appearance</strong>
+          <p class="settings-hint">Switch between dark and light mode</p>
+        </div>
+        <button type="button" id="settings-theme" class="btn-secondary compact" aria-pressed="false">Light mode</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Display name</strong>
+          <p class="settings-hint">How other people see you in chat</p>
+        </div>
+        <button type="button" id="settings-edit-name" class="btn-secondary compact">Edit name</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Password</strong>
+          <p class="settings-hint">Change the password for this account</p>
+        </div>
+        <button type="button" id="settings-password" class="btn-secondary compact">Change password</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Notification sound</strong>
+          <p class="settings-hint">Play a sound when new messages arrive</p>
+        </div>
+        <button type="button" id="settings-sound" class="btn-secondary compact" aria-pressed="true">On</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Microphone</strong>
+          <p class="settings-hint" id="settings-mic-hint">Allow mic for Meet now calls</p>
+        </div>
+        <button type="button" id="settings-mic" class="btn-secondary compact" aria-pressed="false">Allow</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Camera</strong>
+          <p class="settings-hint" id="settings-cam-hint">Allow camera for Meet now calls</p>
+        </div>
+        <button type="button" id="settings-cam" class="btn-secondary compact" aria-pressed="false">Allow</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Status</strong>
+          <p class="settings-hint">Available, busy, or away for friends</p>
+        </div>
+        <button type="button" id="settings-status" class="btn-secondary compact">Set status</button>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="settings-close" class="btn-primary inline">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <button type="button" id="theme-fab" class="theme-fab" title="Toggle light or dark mode">Light mode</button>
 
   <div id="status-modal" class="modal hidden" role="dialog" aria-labelledby="status-modal-title">
     <div class="modal-card">

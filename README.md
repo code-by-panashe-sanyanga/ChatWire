@@ -48,7 +48,7 @@ flowchart TD
 
 **Friends checks in the data layer, not only the UI.** Feed posts and stories are readable or likeable only by the author or their friends. `db.get_post` / `toggle_post_like` / story view helpers return `None` for strangers, so guessing a sequential id is not enough. The UI hiding a button would not have been enough on its own.
 
-**Channel "calls" are presence rooms, not WebRTC.** Meet now / Leave join an in-memory `active_calls` map and broadcast `call_updated` over Socket.IO. There is no mic, camera, or peer connection in this repo. That keeps the feature honest for a single-process demo.
+**Channel calls use presence plus browser WebRTC.** Meet now still tracks who's in the room via an in-memory `active_calls` map and `call_updated` over Socket.IO. Mic and camera are optional: Settings can allow them, Meet now asks the browser for media, and peers exchange SDP/ICE through a `webrtc_signal` relay. There is STUN only (no TURN), so some restrictive NATs will show presence without audio/video.
 
 **Got wrong: treating feed list filtering as enough privacy.** Early on, the feed query only returned friends' posts, but a direct like / comment / story-view by id still worked for any logged-in user. Post ids are sequential, so that was a real hole. The fix was putting the same friend check on every read and write helper, pinned by the strangers-cannot-access tests.
 
@@ -81,14 +81,14 @@ What it deliberately does not cover: two-browser visual confirmation of live del
 
 ## Limitations
 
-Single process: presence, call rooms, and login lockout are in-memory, so they do not share across workers and reset on restart. Channel calls are join/leave presence only, not audio or video. There are no file attachments and no dark/light theme toggle in the shipped UI. `broadcast_presence()` personalises a payload per connected socket, including a per-user friends list, which is fine at demo scale and wasteful beyond it. SQLite is the only database; that is enough for a portfolio demo and not a multi-node chat backend.
+Single process: presence, call rooms, and login lockout are in-memory, so they do not share across workers and reset on restart. Meet now WebRTC uses browser peer connections with a Socket.IO signal relay and public STUN only — no TURN — so audio/video can fail on strict NATs while the presence banner still works. There are no file attachments in the shipped UI. Theme and mic/camera preferences are stored in the browser only (`localStorage`), not on the account. `broadcast_presence()` personalises a payload per connected socket, including a per-user friends list, which is fine at demo scale and wasteful beyond it. SQLite is the only database; that is enough for a portfolio demo and not a multi-node chat backend.
 
 ## Future improvements
 
 - Move presence, call rooms, and login lockout into shared store (Redis or similar) so more than one worker can run without losing who is online.
-- Turn Meet now into real WebRTC audio/video once signalling already has a room model to hang off.
+- Add a TURN server (and screen share) so Meet now media works behind more NATs.
 - Batch friend lookups inside `broadcast_presence()` instead of building a personalised payload per socket on every emit.
-- Add file attachments on messages and a dark/light theme toggle in the UI.
+- Add file attachments on messages, and sync theme / media preferences to the account instead of browser-only storage.
 - Message and channel search, and Postgres if the demo ever needed more than one node writing at once.
 
 ## Running it

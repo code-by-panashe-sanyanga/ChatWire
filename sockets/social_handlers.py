@@ -170,6 +170,41 @@ def register(socketio):
             state.broadcast_call(room)
         state.broadcast_presence()
 
+    @socketio.on("webrtc_signal")
+    def on_webrtc_signal(data):
+        """Relay SDP/ICE between two users in the same Meet now room."""
+        info = state.sessions.get(request.sid)
+        if not info:
+            return
+        if not throttle.allow(info, "webrtc_signal", 0.05):
+            return
+        payload = data or {}
+        ok, target = require_str(payload, "to", min_len=3, max_len=20)
+        if not ok:
+            return
+        target = target.lower()
+        signal_type = (payload.get("type") or "").strip().lower()
+        if signal_type not in ("offer", "answer", "ice"):
+            return
+        room = info["room"]
+        people = state.active_calls.get(room, {})
+        if info["username"] not in people or target not in people:
+            return
+        sid = state.sid_for_username(target)
+        if not sid:
+            return
+        socketio.emit(
+            "webrtc_signal",
+            {
+                "from": info["username"],
+                "from_name": info["user"],
+                "type": signal_type,
+                "sdp": payload.get("sdp"),
+                "candidate": payload.get("candidate"),
+            },
+            to=sid,
+        )
+
 
 def _switch_to_room(socketio, info, community, channel):
     """Shared leave/join path used by open_dm (and similar)."""

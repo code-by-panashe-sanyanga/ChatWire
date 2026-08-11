@@ -8,13 +8,23 @@ var layout = null;
 var communityId = "";
 var channelId = "";
 var typingTimer = null;
-var soundEnabled = true;
+var soundEnabled = localStorage.getItem("chatwire_sound") !== "0";
+var themeMode = localStorage.getItem("chatwire_theme") === "light" ? "light" : "dark";
 var channelMessagesCache = [];
 var lastMessageMeta = null;
 var promptCallback = null;
 var reactionTargetId = null;
 var inCall = false;
 var currentCallRoom = "";
+var localStream = null;
+var peerConnections = {};
+var remoteStreams = {};
+var lastCallParticipants = [];
+var wantMic = localStorage.getItem("chatwire_want_mic") !== "0";
+var wantCam = localStorage.getItem("chatwire_want_cam") === "1";
+var micPermission = "prompt";
+var camPermission = "prompt";
+var ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 var feedHasMore = false;
 var feedOldestId = null;
 var feedMode = false;
@@ -895,11 +905,13 @@ function renderCall(data) {
 
   currentCallRoom = data.room || currentCallRoom;
   var people = data.participants || [];
+  lastCallParticipants = people;
   var myRoom = communityId && channelId ? communityId + ":" + channelId : "";
   var isThisChannel = !data.room || data.room === myRoom;
 
   if (!isThisChannel) return;
 
+  var wasInCall = inCall;
   inCall = people.some(function (p) {
     return p.username === username;
   });
@@ -909,6 +921,8 @@ function renderCall(data) {
     if (meetBtn) meetBtn.textContent = "Meet now";
     var meetMobileClear = document.getElementById("meet-now-mobile");
     if (meetMobileClear) meetMobileClear.textContent = "Meet now";
+    if (wasInCall) teardownCallMedia();
+    else hideCallStage();
     return;
   }
 
@@ -921,6 +935,450 @@ function renderCall(data) {
   if (meetBtn) meetBtn.textContent = inCall ? "In call" : "Join call";
   var meetMobileBtn = document.getElementById("meet-now-mobile");
   if (meetMobileBtn) meetMobileBtn.textContent = inCall ? "Leave call" : "Meet now";
+
+  if (inCall) {
+    syncCallPeers(people);
+    updateCallMediaButtons();
+    renderCallTiles(people);
+  } else if (wasInCall) {
+    teardownCallMedia();
+  } else {
+    hideCallStage();
+  }
+}
+
+function hideCallStage() {
+  var stage = document.getElementById("call-stage");
+  if (stage) stage.classList.add("hidden");
+}
+
+function updateCallMediaButtons() {
+  var micBtn = document.getElementById("call-toggle-mic");
+  var camBtn = document.getElementById("call-toggle-cam");
+  var audioTrack = localStream && localStream.getAudioTracks()[0];
+  var videoTrack = localStream && localStream.getVideoTracks()[0];
+  var micLive = !!(audioTrack && audioTrack.enabled);
+  var camLive = !!(videoTrack && videoTrack.enabled);
+  if (micBtn) {
+    micBtn.textContent = micLive ? "Mic on" : "Mic off";
+    micBtn.setAttribute("aria-pressed", micLive ? "true" : "false");
+    micBtn.disabled = !audioTrack;
+  }
+  if (camBtn) {
+    camBtn.textContent = camLive ? "Cam on" : "Cam off";
+    camBtn.setAttribute("aria-pressed", camLive ? "true" : "false");
+    camBtn.disabled = !videoTrack && !wantCam;
+  }
+}
+
+function renderCallTiles(people) {
+  var stage = document.getElementById("call-stage");
+  var tiles = document.getElementById("call-tiles");
+  if (!stage || !tiles) return;
+  if (!inCall) {
+    stage.classList.add("hidden");
+    return;
+  }
+  stage.classList.remove("hidden");
+
+  var keep = { local: true };
+  people.forEach(function (p) {
+    if (p.username !== username) keep[p.username] = true;
+  });
+
+  Array.prototype.slice.call(tiles.children).forEach(function (el) {
+    var key = el.getAttribute("data-peer");
+    if (!keep[key]) el.remove();
+  });
+
+  ensureCallTile("local", "You", true);
+  people.forEach(function (p) {
+    if (p.username === username) return;
+    ensureCallTile(p.username, p.name || p.username, false);
+  });
+
+  var localTile = tiles.querySelector('[data-peer="local"]');
+  if (localTile) {
+    var localVideo = localTile.querySelector("video");
+    if (localVideo && localStream && localVideo.srcObject !== localStream) {
+      localVideo.srcObject = localStream;
+    }
+    var hasVideo = !!(localStream && localStream.getVideoTracks().some(function (t) {
+      return t.enabled && t.readyState === "live";
+    }));
+    localTile.classList.toggle("audio-only", !hasVideo);
+  }
+
+  people.forEach(function (p) {
+    if (p.username === username) return;
+    var tile = tiles.querySelector('[data-peer="' + p.username + '"]');
+    if (!tile) return;
+    var video = tile.querySelector("video");
+    var stream = remoteStreams[p.username];
+    if (video && stream && video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+    var hasVideo = !!(stream && stream.getVideoTracks().some(function (t) {
+      return t.readyState === "live";
+    }));
+    tile.classList.toggle("audio-only", !hasVideo);
+  });
+}
+
+function ensureCallTile(peerKey, label, muted) {
+  var tiles = document.getElementById("call-tiles");
+  if (!tiles) return;
+  var existing = tiles.querySelector('[data-peer="' + peerKey + '"]');
+  if (existing) {
+    var nameEl = existing.querySelector(".call-tile-label");
+    if (nameEl) nameEl.textContent = label;
+    return;
+  }
+  var tile = document.createElement("div");
+  tile.className = "call-tile audio-only";
+  tile.setAttribute("data-peer", peerKey);
+  var video = document.createElement("video");
+  video.autoplay = true;
+  video.playsInline = true;
+  video.muted = !!muted;
+  var avatar = document.createElement("div");
+  avatar.className = "call-tile-avatar";
+  avatar.textContent = (label || "?").charAt(0).toUpperCase();
+  var name = document.createElement("span");
+  name.className = "call-tile-label";
+  name.textContent = label;
+  tile.appendChild(video);
+  tile.appendChild(avatar);
+  tile.appendChild(name);
+  tiles.appendChild(tile);
+}
+
+function syncMediaPermissionUi() {
+  var micBtn = document.getElementById("settings-mic");
+  var camBtn = document.getElementById("settings-cam");
+  var micHint = document.getElementById("settings-mic-hint");
+  var camHint = document.getElementById("settings-cam-hint");
+  if (micBtn) {
+    if (micPermission === "denied") {
+      micBtn.textContent = "Blocked";
+      micBtn.setAttribute("aria-pressed", "false");
+    } else if (wantMic && micPermission === "granted") {
+      micBtn.textContent = "On";
+      micBtn.setAttribute("aria-pressed", "true");
+    } else if (wantMic) {
+      micBtn.textContent = "Allow";
+      micBtn.setAttribute("aria-pressed", "false");
+    } else {
+      micBtn.textContent = "Off";
+      micBtn.setAttribute("aria-pressed", "false");
+    }
+  }
+  if (camBtn) {
+    if (camPermission === "denied") {
+      camBtn.textContent = "Blocked";
+      camBtn.setAttribute("aria-pressed", "false");
+    } else if (wantCam && camPermission === "granted") {
+      camBtn.textContent = "On";
+      camBtn.setAttribute("aria-pressed", "true");
+    } else if (wantCam) {
+      camBtn.textContent = "Allow";
+      camBtn.setAttribute("aria-pressed", "false");
+    } else {
+      camBtn.textContent = "Off";
+      camBtn.setAttribute("aria-pressed", "false");
+    }
+  }
+  if (micHint) {
+    micHint.textContent =
+      micPermission === "denied"
+        ? "Blocked in the browser — reset site permissions, then Allow"
+        : "Use mic in Meet now (browser will ask once)";
+  }
+  if (camHint) {
+    camHint.textContent =
+      camPermission === "denied"
+        ? "Blocked in the browser — reset site permissions, then Allow"
+        : "Use camera in Meet now (browser will ask once)";
+  }
+}
+
+function refreshMediaPermissionState() {
+  if (!navigator.permissions || !navigator.permissions.query) {
+    syncMediaPermissionUi();
+    return Promise.resolve();
+  }
+  return Promise.all([
+    navigator.permissions.query({ name: "microphone" }).then(function (status) {
+      micPermission = status.state;
+      status.onchange = function () {
+        micPermission = status.state;
+        syncMediaPermissionUi();
+      };
+    }).catch(function () {}),
+    navigator.permissions.query({ name: "camera" }).then(function (status) {
+      camPermission = status.state;
+      status.onchange = function () {
+        camPermission = status.state;
+        syncMediaPermissionUi();
+      };
+    }).catch(function () {}),
+  ]).then(syncMediaPermissionUi);
+}
+
+function stopLocalStream() {
+  if (!localStream) return;
+  localStream.getTracks().forEach(function (track) {
+    track.stop();
+  });
+  localStream = null;
+}
+
+function teardownCallMedia() {
+  Object.keys(peerConnections).forEach(function (peer) {
+    try {
+      peerConnections[peer].close();
+    } catch (e) {}
+  });
+  peerConnections = {};
+  remoteStreams = {};
+  stopLocalStream();
+  hideCallStage();
+  var tiles = document.getElementById("call-tiles");
+  if (tiles) tiles.innerHTML = "";
+  updateCallMediaButtons();
+}
+
+function ensureLocalMedia() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return Promise.reject(new Error("Media devices unavailable"));
+  }
+  var needAudio = wantMic;
+  var needVideo = wantCam;
+  if (!needAudio && !needVideo) {
+    stopLocalStream();
+    return Promise.resolve(null);
+  }
+  if (localStream) {
+    var hasAudio = localStream.getAudioTracks().length > 0;
+    var hasVideo = localStream.getVideoTracks().length > 0;
+    if ((!!needAudio === hasAudio) && (!!needVideo === hasVideo || !needVideo)) {
+      localStream.getAudioTracks().forEach(function (t) {
+        t.enabled = needAudio;
+      });
+      localStream.getVideoTracks().forEach(function (t) {
+        t.enabled = needVideo;
+      });
+      return Promise.resolve(localStream);
+    }
+    stopLocalStream();
+  }
+  return navigator.mediaDevices
+    .getUserMedia({ audio: needAudio, video: needVideo })
+    .then(function (stream) {
+      localStream = stream;
+      if (needAudio) micPermission = "granted";
+      if (needVideo) camPermission = "granted";
+      syncMediaPermissionUi();
+      updateCallMediaButtons();
+      return stream;
+    })
+    .catch(function (err) {
+      if (needAudio) micPermission = "denied";
+      if (needVideo) camPermission = "denied";
+      syncMediaPermissionUi();
+      throw err;
+    });
+}
+
+function requestMediaPermission(kind) {
+  var constraints =
+    kind === "camera" ? { audio: false, video: true } : { audio: true, video: false };
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast("This browser cannot access mic or camera", true);
+    return Promise.resolve();
+  }
+  return navigator.mediaDevices
+    .getUserMedia(constraints)
+    .then(function (stream) {
+      stream.getTracks().forEach(function (t) {
+        t.stop();
+      });
+      if (kind === "camera") {
+        wantCam = true;
+        camPermission = "granted";
+        localStorage.setItem("chatwire_want_cam", "1");
+        toast("Camera allowed");
+      } else {
+        wantMic = true;
+        micPermission = "granted";
+        localStorage.setItem("chatwire_want_mic", "1");
+        toast("Microphone allowed");
+      }
+      syncMediaPermissionUi();
+      if (inCall) {
+        return ensureLocalMedia().then(function () {
+          renegotiateLocalTracks();
+          renderCallTiles(lastCallParticipants);
+        });
+      }
+    })
+    .catch(function () {
+      if (kind === "camera") camPermission = "denied";
+      else micPermission = "denied";
+      syncMediaPermissionUi();
+      toast(
+        kind === "camera"
+          ? "Camera blocked — check the browser site settings"
+          : "Microphone blocked — check the browser site settings",
+        true
+      );
+    });
+}
+
+function renegotiateLocalTracks() {
+  Object.keys(peerConnections).forEach(function (peer) {
+    var pc = peerConnections[peer];
+    if (!pc || !localStream) return;
+    var senders = pc.getSenders();
+    localStream.getTracks().forEach(function (track) {
+      var sender = senders.find(function (s) {
+        return s.track && s.track.kind === track.kind;
+      });
+      if (sender) sender.replaceTrack(track);
+      else pc.addTrack(track, localStream);
+    });
+  });
+}
+
+function syncCallPeers(people) {
+  if (!inCall || !socket) return;
+  var others = people
+    .map(function (p) {
+      return p.username;
+    })
+    .filter(function (name) {
+      return name && name !== username;
+    });
+
+  Object.keys(peerConnections).forEach(function (peer) {
+    if (others.indexOf(peer) === -1) {
+      try {
+        peerConnections[peer].close();
+      } catch (e) {}
+      delete peerConnections[peer];
+      delete remoteStreams[peer];
+    }
+  });
+
+  others.forEach(function (peer) {
+    if (peerConnections[peer]) return;
+    // Only the lexicographically smaller username offers, to avoid glare.
+    if (username < peer) {
+      createPeerConnection(peer, true);
+    }
+  });
+}
+
+function createPeerConnection(peerUsername, isOfferer) {
+  if (peerConnections[peerUsername]) return peerConnections[peerUsername];
+  var pc = new RTCPeerConnection(ICE_SERVERS);
+  peerConnections[peerUsername] = pc;
+
+  if (localStream) {
+    localStream.getTracks().forEach(function (track) {
+      pc.addTrack(track, localStream);
+    });
+  } else {
+    try {
+      pc.addTransceiver("audio", { direction: "recvonly" });
+      pc.addTransceiver("video", { direction: "recvonly" });
+    } catch (e) {}
+  }
+
+  pc.onicecandidate = function (event) {
+    if (!event.candidate || !socket) return;
+    socket.emit("webrtc_signal", {
+      to: peerUsername,
+      type: "ice",
+      candidate: event.candidate,
+    });
+  };
+
+  pc.ontrack = function (event) {
+    var stream = event.streams && event.streams[0];
+    if (!stream) {
+      stream = new MediaStream([event.track]);
+    }
+    remoteStreams[peerUsername] = stream;
+    if (inCall) renderCallTiles(lastCallParticipants);
+  };
+
+  pc.onconnectionstatechange = function () {
+    if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+      try {
+        pc.close();
+      } catch (e) {}
+      delete peerConnections[peerUsername];
+    }
+  };
+
+  if (isOfferer) {
+    pc
+      .createOffer()
+      .then(function (offer) {
+        return pc.setLocalDescription(offer);
+      })
+      .then(function () {
+        if (!socket) return;
+        socket.emit("webrtc_signal", {
+          to: peerUsername,
+          type: "offer",
+          sdp: pc.localDescription,
+        });
+      })
+      .catch(function () {
+        toast("Could not start media with " + peerUsername, true);
+      });
+  }
+
+  return pc;
+}
+
+function handleWebRtcSignal(data) {
+  if (!data || !data.from || !inCall) return;
+  var peer = data.from;
+  var pc = peerConnections[peer];
+  if (data.type === "offer") {
+    pc = createPeerConnection(peer, false);
+    pc
+      .setRemoteDescription(data.sdp)
+      .then(function () {
+        return pc.createAnswer();
+      })
+      .then(function (answer) {
+        return pc.setLocalDescription(answer);
+      })
+      .then(function () {
+        if (!socket) return;
+        socket.emit("webrtc_signal", {
+          to: peer,
+          type: "answer",
+          sdp: pc.localDescription,
+        });
+      })
+      .catch(function () {
+        toast("Could not answer media from " + peer, true);
+      });
+    return;
+  }
+  if (!pc) return;
+  if (data.type === "answer") {
+    pc.setRemoteDescription(data.sdp).catch(function () {});
+    return;
+  }
+  if (data.type === "ice" && data.candidate) {
+    pc.addIceCandidate(data.candidate).catch(function () {});
+  }
 }
 
 function clearLog() {
@@ -1368,6 +1826,56 @@ function closePasswordModal() {
   document.getElementById("password-modal").classList.add("hidden");
 }
 
+function applyTheme(mode) {
+  themeMode = mode === "light" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", themeMode);
+  localStorage.setItem("chatwire_theme", themeMode);
+  var isLight = themeMode === "light";
+  var label = isLight ? "Dark mode" : "Light mode";
+  var themeBtn = document.getElementById("settings-theme");
+  var fab = document.getElementById("theme-fab");
+  if (themeBtn) {
+    themeBtn.textContent = label;
+    themeBtn.setAttribute("aria-pressed", isLight ? "true" : "false");
+  }
+  if (fab) {
+    fab.textContent = label;
+    fab.setAttribute("aria-pressed", isLight ? "true" : "false");
+  }
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute("content", isLight ? "#e8e2d8" : "#14110f");
+  }
+}
+
+function toggleTheme() {
+  applyTheme(themeMode === "light" ? "dark" : "light");
+}
+
+function syncSoundUi() {
+  var btn = document.getElementById("settings-sound");
+  if (!btn) return;
+  btn.setAttribute("aria-pressed", soundEnabled ? "true" : "false");
+  btn.textContent = soundEnabled ? "On" : "Off";
+}
+
+function setSoundEnabled(on) {
+  soundEnabled = !!on;
+  localStorage.setItem("chatwire_sound", soundEnabled ? "1" : "0");
+  syncSoundUi();
+}
+
+function openSettingsModal() {
+  syncSoundUi();
+  applyTheme(themeMode);
+  refreshMediaPermissionState();
+  document.getElementById("settings-modal").classList.remove("hidden");
+}
+
+function closeSettingsModal() {
+  document.getElementById("settings-modal").classList.add("hidden");
+}
+
 function savePassword() {
   var current = document.getElementById("pw-current").value;
   var next = document.getElementById("pw-new").value;
@@ -1488,6 +1996,7 @@ function bindSocket() {
 
   socket.on("disconnect", function () {
     setStatus(false);
+    teardownCallMedia();
   });
 
   socket.on("auth_error", function (data) {
@@ -1518,6 +2027,7 @@ function bindSocket() {
     communityId = data.community;
     channelId = data.channel;
     inCall = false;
+    teardownCallMedia();
     renderServerRail();
     renderChannels();
   });
@@ -1565,6 +2075,7 @@ function bindSocket() {
     toast((data && data.error) || "Channel action failed", true);
   });
   socket.on("call_updated", renderCall);
+  socket.on("webrtc_signal", handleWebRtcSignal);
   socket.on("message", function (msg) {
     addMessage(msg);
   });
@@ -1760,13 +2271,75 @@ document.getElementById("register-form").onsubmit = function (e) {
   });
 };
 
-document.getElementById("edit-name").onclick = promptDisplayName;
 document.getElementById("rename-channel").onclick = promptRenameChannel;
 document.getElementById("rename-community").onclick = function () {
   document.getElementById("community-menu").classList.add("hidden");
   promptRenameCommunity();
 };
-document.getElementById("change-password").onclick = openPasswordModal;
+document.getElementById("open-settings").onclick = openSettingsModal;
+document.getElementById("settings-close").onclick = closeSettingsModal;
+document.getElementById("settings-modal").addEventListener("click", function (e) {
+  if (e.target.id === "settings-modal") closeSettingsModal();
+});
+document.getElementById("settings-theme").onclick = toggleTheme;
+document.getElementById("theme-fab").onclick = toggleTheme;
+document.getElementById("settings-edit-name").onclick = function () {
+  closeSettingsModal();
+  promptDisplayName();
+};
+document.getElementById("settings-password").onclick = function () {
+  closeSettingsModal();
+  openPasswordModal();
+};
+document.getElementById("settings-status").onclick = function () {
+  closeSettingsModal();
+  openStatusModal();
+};
+document.getElementById("settings-sound").onclick = function () {
+  setSoundEnabled(!soundEnabled);
+  toast(soundEnabled ? "Sounds on" : "Sounds muted");
+};
+document.getElementById("settings-mic").onclick = function () {
+  if (micPermission === "denied") {
+    toast("Microphone is blocked in the browser site settings", true);
+    return;
+  }
+  if (wantMic && micPermission === "granted") {
+    wantMic = false;
+    localStorage.setItem("chatwire_want_mic", "0");
+    if (localStream) {
+      localStream.getAudioTracks().forEach(function (t) {
+        t.enabled = false;
+      });
+    }
+    syncMediaPermissionUi();
+    updateCallMediaButtons();
+    toast("Microphone off for Meet now");
+    return;
+  }
+  requestMediaPermission("mic");
+};
+document.getElementById("settings-cam").onclick = function () {
+  if (camPermission === "denied") {
+    toast("Camera is blocked in the browser site settings", true);
+    return;
+  }
+  if (wantCam && camPermission === "granted") {
+    wantCam = false;
+    localStorage.setItem("chatwire_want_cam", "0");
+    if (localStream) {
+      localStream.getVideoTracks().forEach(function (t) {
+        t.stop();
+      });
+    }
+    syncMediaPermissionUi();
+    updateCallMediaButtons();
+    if (inCall) renderCallTiles(lastCallParticipants);
+    toast("Camera off for Meet now");
+    return;
+  }
+  requestMediaPermission("camera");
+};
 document.getElementById("pw-cancel").onclick = closePasswordModal;
 document.getElementById("pw-save").onclick = savePassword;
 document.getElementById("prompt-cancel").onclick = closePrompt;
@@ -1811,10 +2384,17 @@ document.getElementById("toggle-members").onclick = function () {
 document.getElementById("meet-now").onclick = function () {
   if (!socket) return;
   if (inCall) {
+    teardownCallMedia();
     socket.emit("call_leave");
-  } else {
-    socket.emit("call_join");
+    return;
   }
+  ensureLocalMedia()
+    .catch(function () {
+      toast("Mic/camera unavailable — joining without media. Use Settings to allow access.", true);
+    })
+    .then(function () {
+      socket.emit("call_join");
+    });
 };
 
 var meetMobile = document.getElementById("meet-now-mobile");
@@ -1865,8 +2445,56 @@ document.getElementById("load-older").onclick = function () {
   socket.emit("load_older_messages", { before_id: channelOldestId });
 };
 
+document.getElementById("call-toggle-mic").onclick = function () {
+  if (!localStream || !localStream.getAudioTracks().length) {
+    wantMic = true;
+    localStorage.setItem("chatwire_want_mic", "1");
+    ensureLocalMedia()
+      .then(function () {
+        renegotiateLocalTracks();
+        updateCallMediaButtons();
+        renderCallTiles(lastCallParticipants);
+      })
+      .catch(function () {
+        toast("Could not enable microphone", true);
+      });
+    return;
+  }
+  var track = localStream.getAudioTracks()[0];
+  track.enabled = !track.enabled;
+  wantMic = track.enabled;
+  localStorage.setItem("chatwire_want_mic", wantMic ? "1" : "0");
+  updateCallMediaButtons();
+  syncMediaPermissionUi();
+};
+
+document.getElementById("call-toggle-cam").onclick = function () {
+  var track = localStream && localStream.getVideoTracks()[0];
+  if (!track) {
+    wantCam = true;
+    localStorage.setItem("chatwire_want_cam", "1");
+    ensureLocalMedia()
+      .then(function () {
+        renegotiateLocalTracks();
+        updateCallMediaButtons();
+        renderCallTiles(lastCallParticipants);
+      })
+      .catch(function () {
+        toast("Could not enable camera", true);
+      });
+    return;
+  }
+  track.enabled = !track.enabled;
+  wantCam = track.enabled;
+  localStorage.setItem("chatwire_want_cam", wantCam ? "1" : "0");
+  updateCallMediaButtons();
+  syncMediaPermissionUi();
+  renderCallTiles(lastCallParticipants);
+};
+
 document.getElementById("leave-call").onclick = function () {
   if (!socket) return;
+  teardownCallMedia();
   socket.emit("call_leave");
 };
 
@@ -1896,14 +2524,6 @@ document.getElementById("add-event-form").onsubmit = function (e) {
   });
   document.getElementById("event-title").value = "";
   document.getElementById("event-location").value = "";
-};
-
-document.getElementById("toggle-sound").onclick = function () {
-  soundEnabled = !soundEnabled;
-  var btn = document.getElementById("toggle-sound");
-  btn.setAttribute("aria-pressed", soundEnabled ? "true" : "false");
-  btn.textContent = soundEnabled ? "🔔" : "🔕";
-  toast(soundEnabled ? "Sounds on" : "Sounds muted");
 };
 
 // status picker
@@ -2024,6 +2644,7 @@ document.addEventListener("keydown", function (e) {
     closeSwitcher();
     closePrompt();
     closePasswordModal();
+    closeSettingsModal();
     closeStatusModal();
     closeStoryModal();
     closeStoryViewer();
@@ -2088,3 +2709,7 @@ if (postText) {
   postText.addEventListener("input", updatePostCount);
   updatePostCount();
 }
+
+applyTheme(themeMode);
+syncSoundUi();
+refreshMediaPermissionState();

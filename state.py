@@ -237,6 +237,13 @@ def call_participants(room):
     ]
 
 
+def sid_for_username(username):
+    for sid, info in sessions.items():
+        if info.get("username") == username:
+            return sid
+    return None
+
+
 def leave_call(username, room):
     people = active_calls.get(room, {})
     if username not in people:
