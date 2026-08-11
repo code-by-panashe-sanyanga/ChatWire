@@ -148,6 +148,18 @@ def bootstrap():
         if not check_password(DEMO_PASSWORD, record["password_hash"]):
             db.update_password(DEMO_USERNAME, hash_password(DEMO_PASSWORD))
     refresh_layout()
+    # fill friends / chat / timeline / stories when the DB is empty (e.g. fresh Railway deploy)
+    try:
+        import seed
+
+        seed.ensure_users()
+        seed.seed_friends()
+        seed.seed_events()
+        seed.seed_messages()
+        seed.seed_feed()
+        seed.seed_stories()
+    except Exception as err:
+        print(f"WARNING: demo seed skipped: {err}", file=__import__("sys").stderr)
 
 
 def channel_room(community_id, channel_id):
