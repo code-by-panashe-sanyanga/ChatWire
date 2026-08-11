@@ -4,8 +4,7 @@ Real-time chat with a Discord-style layout. The browser uses JSON HTTP for login
 
 ![ChatWire chat UI](screenshots/chat.png)
 
-**Live:** [chat-wire-production.up.railway.app](https://chat-wire-production.up.railway.app)  
-**Stack:** HTML, CSS, JS, Python, Flask, Flask-SocketIO, SQLite
+**Live:** [chat-wire-production.up.railway.app](https://chat-wire-production.up.railway.app) · **Stack:** HTML, CSS, JS, Python, Flask, Flask-SocketIO, SQLite
 
 Demo login: **demo** / **demo123456** (admin account, so rename works in demos)
 
@@ -28,17 +27,18 @@ Login and password changes go through Flask (`/api/auth/*`). Everything live (me
 
 Channel history loads once with cursor pagination (`before_id` / `has_more`), then new events append. Switching rooms does not replay the whole history. Unread counts and DM threads are stored in SQLite (`channel_reads`, `_dm` channels) and pushed over sockets.
 
-| File | Job |
-|------|-----|
-| `static/` | UI (channels, DMs, feed, stories, Ctrl+K switcher) |
-| `app.py` | Flask routes (`/api/auth/*`, health, ready) |
-| `sockets/` | Live chat / social / feed / call presence events |
-| `db.py` | SQL schema + queries |
-| `state.py` | Online presence, session helpers, call rooms (in memory) |
-| `throttle.py` | Per-connection rate limits |
-| `validate.py` | Payload checks |
-| `seed.py` | Optional sample data |
-| `tests/` | pytest |
+```mermaid
+flowchart TD
+  Login[POST /api/auth/login] -->|session token| Browser
+  Browser -->|connect + token| SocketIO
+  SocketIO -->|join room| History[channel_history page]
+  History -->|before_id / has_more| Older[load_older_messages]
+  SocketIO -->|message / react / typing| Peers[other sockets in room]
+  SocketIO -->|feed / stories| FriendsCheck[db friend checks]
+  FriendsCheck --> SQL[(SQLite)]
+```
+
+`app.py` owns HTTP auth, health, and ready. `sockets/` owns the live events. `db.py` is the SQL schema and queries. `state.py` holds online presence, session helpers, and call rooms. `throttle.py` rate-limits write events per connection. `validate.py` checks payloads. `static/` is the UI, including the Ctrl+K channel switcher. `seed.py` loads optional sample data. `tests/` is the pytest suite.
 
 ## Decisions
 
@@ -50,22 +50,23 @@ Channel history loads once with cursor pagination (`before_id` / `has_more`), th
 
 **Channel "calls" are presence rooms, not WebRTC.** Meet now / Leave join an in-memory `active_calls` map and broadcast `call_updated` over Socket.IO. There is no mic, camera, or peer connection in this repo. That keeps the feature honest for a single-process demo.
 
+**Got wrong: treating feed list filtering as enough privacy.** Early on, the feed query only returned friends' posts, but a direct like / comment / story-view by id still worked for any logged-in user. Post ids are sequential, so that was a real hole. The fix was putting the same friend check on every read and write helper, pinned by the strangers-cannot-access tests.
+
 ## Results
 
-What's checkable from the test suite (`pytest -q` collects **24** tests):
+What's checkable from the test suite rather than guessed at:
 
+- `pytest -q` collects **24** tests across auth hardening, message handlers, and socket flows.
 - Login returns a signed session token; the socket accepts that token on connect.
 - Password rules reject short / letterless / numberless passwords; five wrong logins trigger a short lockout.
 - Security headers (including CSP) are present on HTTP responses.
-- Sending a message over the socket lands for the client; blank messages error.
-- Cursor pagination: first history page can report `has_more`, and `load_older_messages` returns the earlier batch.
+- Cursor pagination: a first history page can report `has_more`, and `load_older_messages` returns the earlier batch.
 - Only the message owner can edit; a non-admin cannot rename a channel; an admin can.
-- Unread summary + mark-read, DM thread creation, and add-friend over sockets.
-- Friends-only posts and stories: a stranger cannot read, like, comment, or mark viewed.
+- Friends-only posts and stories: a stranger cannot read, like, comment, or mark viewed (`test_strangers_cannot_access_friends_only_post`, `test_strangers_cannot_mark_friends_only_story_viewed`).
 
 ## The hard bit
 
-Feed and story privacy look fine in the UI until you remember post ids are sequential. Early on it was enough to filter the feed list to friends; a direct `get_post` / like / comment / story-view by id still worked for anyone who was logged in. The fix was to put the same friend check in every read and write helper in `db.py` (`get_post`, `toggle_post_like`, comment and story paths), so a missing friendship returns `None` / an error before any mutation. `test_strangers_cannot_access_friends_only_post` and `test_strangers_cannot_mark_friends_only_story_viewed` pin that down.
+Feed and story privacy look fine in the UI until you remember post ids are sequential. Filtering the feed list to friends was not enough: a direct `get_post` / like / comment / story-view by id still worked for anyone who was logged in. The fix was to put the same friend check in every read and write helper in `db.py`, so a missing friendship returns `None` / an error before any mutation. The two strangers-cannot-* tests are what actually pin that down now.
 
 ## Testing
 
@@ -76,27 +77,34 @@ pytest -q
 
 That covers auth hardening, message handlers (including friends-only feed/stories), and socket flows (send, pagination, edit ownership, admin rename, DMs, friends, unreads).
 
-Manual checks that stay outside pytest: two browsers seeing a live message, reconnecting with the stored token after a refresh, and Meet now showing the same call banner for people in the channel.
+What it deliberately does not cover: two-browser visual confirmation of live delivery, reconnect-after-refresh with the stored token, or Meet now banner sync across tabs. Those stay manual. I also re-check the Railway URL and demo login after each deploy.
 
 ## Limitations
 
-- Single process. Presence, call rooms, and login lockout are in-memory; they do not share across workers and reset on restart.
-- Channel calls are join/leave presence only, not audio/video.
-- No file attachments and no dark/light theme toggle in the shipped UI.
-- `broadcast_presence()` personalises a payload per connected socket (including a per-user friends list). Fine at demo scale; at larger scale you would batch friend lookups instead of doing that work per emit.
-- SQLite is the only database. Fine for a portfolio demo; not a multi-node chat backend.
+Single process: presence, call rooms, and login lockout are in-memory, so they do not share across workers and reset on restart. Channel calls are join/leave presence only, not audio or video. There are no file attachments and no dark/light theme toggle in the shipped UI. `broadcast_presence()` personalises a payload per connected socket, including a per-user friends list, which is fine at demo scale and wasteful beyond it. SQLite is the only database; that is enough for a portfolio demo and not a multi-node chat backend.
+
+## Future improvements
+
+- Move presence, call rooms, and login lockout into shared store (Redis or similar) so more than one worker can run without losing who is online.
+- Turn Meet now into real WebRTC audio/video once signalling already has a room model to hang off.
+- Batch friend lookups inside `broadcast_presence()` instead of building a personalised payload per socket on every emit.
+- Add file attachments on messages and a dark/light theme toggle in the UI.
+- Message and channel search, and Postgres if the demo ever needed more than one node writing at once.
 
 ## Running it
 
+Prereqs: Python 3.12+. Node is not required.
+
 ```bash
+git clone https://github.com/code-by-panashe-sanyanga/ChatWire.git
+cd ChatWire
 python3 -m venv venv
 source venv/bin/activate   # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 python app.py
 ```
 
-Open http://localhost:5001  
-Optional sample data: `python seed.py`
+Open http://localhost:5001. Optional sample data: `python seed.py`.
 
 ## Deploy (Railway)
 
