@@ -34,6 +34,9 @@ var myStatus = "available";
 var myStatusText = "";
 var pendingStatus = "available";
 var pendingStoryBg = "#1c212b";
+var pendingChatImageUrl = "";
+var pendingPostImageUrl = "";
+var pendingStoryImageUrl = "";
 var storyGroups = [];
 var storyViewerGroup = null;
 var storyViewerIndex = 0;
@@ -122,6 +125,60 @@ function toast(message, isError) {
   setTimeout(function () {
     el.remove();
   }, 2800);
+}
+
+function uploadDeviceImage(file) {
+  if (!file) return Promise.reject(new Error("No file"));
+  if (!username || !sessionToken) {
+    return Promise.reject(new Error("Login required"));
+  }
+  var fd = new FormData();
+  fd.append("file", file);
+  fd.append("username", username);
+  fd.append("token", sessionToken);
+  return fetch("/api/upload", { method: "POST", body: fd }).then(function (res) {
+    return res.json().then(function (data) {
+      if (!res.ok) throw new Error((data && data.error) || "Upload failed");
+      return data.url;
+    });
+  });
+}
+
+function setAttachPreview(prefix, url, fileName) {
+  var box = document.getElementById(prefix + "-attach-preview");
+  var thumb = document.getElementById(prefix + "-attach-thumb");
+  var name = document.getElementById(prefix + "-attach-name");
+  if (!box || !thumb) return;
+  if (!url) {
+    box.classList.add("hidden");
+    thumb.removeAttribute("src");
+    if (name) name.textContent = "Photo";
+    return;
+  }
+  thumb.src = url;
+  if (name) name.textContent = fileName || "Photo ready";
+  box.classList.remove("hidden");
+}
+
+function clearChatAttach() {
+  pendingChatImageUrl = "";
+  var input = document.getElementById("chat-file");
+  if (input) input.value = "";
+  setAttachPreview("chat", "");
+}
+
+function clearPostAttach() {
+  pendingPostImageUrl = "";
+  var input = document.getElementById("post-file");
+  if (input) input.value = "";
+  setAttachPreview("post", "");
+}
+
+function clearStoryAttach() {
+  pendingStoryImageUrl = "";
+  var input = document.getElementById("story-file");
+  if (input) input.value = "";
+  setAttachPreview("story", "");
 }
 
 function setAuthMsg(text, isError) {
@@ -529,6 +586,7 @@ function renderStories(groups) {
 function openStoryModal() {
   document.getElementById("story-text").value = "";
   document.getElementById("story-image").value = "";
+  clearStoryAttach();
   pendingStoryBg = "#1c212b";
   document.querySelectorAll(".story-bg").forEach(function (b) {
     b.classList.toggle("active", b.getAttribute("data-bg") === pendingStoryBg);
@@ -538,6 +596,7 @@ function openStoryModal() {
 
 function closeStoryModal() {
   document.getElementById("story-modal").classList.add("hidden");
+  clearStoryAttach();
 }
 
 function openStatusModal() {
@@ -1476,7 +1535,11 @@ function buildMessageRow(msg, grouped) {
 
   var text = document.createElement("div");
   text.className = "msg-text";
-  text.innerHTML = renderMarkdown(msg.text);
+  if (msg.text) {
+    text.innerHTML = renderMarkdown(msg.text);
+  } else {
+    text.classList.add("hidden");
+  }
 
   var reactions = document.createElement("div");
   reactions.className = "reactions";
@@ -1484,6 +1547,14 @@ function buildMessageRow(msg, grouped) {
 
   body.appendChild(head);
   body.appendChild(text);
+  if (msg.image_url) {
+    var img = document.createElement("img");
+    img.className = "msg-image";
+    img.src = msg.image_url;
+    img.alt = "Attached photo";
+    img.loading = "lazy";
+    body.appendChild(img);
+  }
   body.appendChild(reactions);
   li.appendChild(avatar);
   li.appendChild(body);
@@ -2427,15 +2498,37 @@ document.getElementById("post-form").onsubmit = function (e) {
   e.preventDefault();
   if (!socket) return;
   var text = document.getElementById("post-text").value.trim();
-  var image = document.getElementById("post-image").value.trim();
+  var image =
+    pendingPostImageUrl || document.getElementById("post-image").value.trim();
   if (!text && !image) {
-    toast("Write something or add an image URL", true);
+    toast("Write something or add a photo", true);
     return;
   }
   socket.emit("post_create", { text: text, image_url: image });
   document.getElementById("post-text").value = "";
   document.getElementById("post-image").value = "";
+  clearPostAttach();
 };
+
+document.getElementById("post-pick-photo").onclick = function () {
+  document.getElementById("post-file").click();
+};
+document.getElementById("post-file").onchange = function (e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  uploadDeviceImage(file)
+    .then(function (url) {
+      pendingPostImageUrl = url;
+      document.getElementById("post-image").value = "";
+      setAttachPreview("post", url, file.name);
+      toast("Photo attached");
+    })
+    .catch(function (err) {
+      toast((err && err.message) || "Could not upload photo", true);
+      clearPostAttach();
+    });
+};
+document.getElementById("post-attach-clear").onclick = clearPostAttach;
 
 document.getElementById("feed-more").onclick = function () {
   if (!socket || !feedHasMore || !feedOldestId) return;
@@ -2561,9 +2654,10 @@ document.querySelectorAll(".story-bg").forEach(function (btn) {
 document.getElementById("story-save").onclick = function () {
   if (!socket) return;
   var text = document.getElementById("story-text").value.trim();
-  var image = document.getElementById("story-image").value.trim();
+  var image =
+    pendingStoryImageUrl || document.getElementById("story-image").value.trim();
   if (!text && !image) {
-    toast("Add some text or an image URL", true);
+    toast("Add some text or a photo", true);
     return;
   }
   socket.emit("story_create", {
@@ -2571,7 +2665,27 @@ document.getElementById("story-save").onclick = function () {
     image_url: image,
     bg_color: pendingStoryBg,
   });
+  clearStoryAttach();
 };
+document.getElementById("story-pick-photo").onclick = function () {
+  document.getElementById("story-file").click();
+};
+document.getElementById("story-file").onchange = function (e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  uploadDeviceImage(file)
+    .then(function (url) {
+      pendingStoryImageUrl = url;
+      document.getElementById("story-image").value = "";
+      setAttachPreview("story", url, file.name);
+      toast("Photo attached");
+    })
+    .catch(function (err) {
+      toast((err && err.message) || "Could not upload photo", true);
+      clearStoryAttach();
+    });
+};
+document.getElementById("story-attach-clear").onclick = clearStoryAttach;
 document.getElementById("story-viewer-close").onclick = closeStoryViewer;
 document.getElementById("story-prev").onclick = function () {
   if (!storyViewerGroup) return;
@@ -2591,6 +2705,25 @@ document.getElementById("emoji-toggle").onclick = function () {
   reactionTargetId = null;
   document.getElementById("emoji-panel").classList.toggle("hidden");
 };
+
+document.getElementById("attach-photo").onclick = function () {
+  document.getElementById("chat-file").click();
+};
+document.getElementById("chat-file").onchange = function (e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  uploadDeviceImage(file)
+    .then(function (url) {
+      pendingChatImageUrl = url;
+      setAttachPreview("chat", url, file.name);
+      toast("Photo ready to send");
+    })
+    .catch(function (err) {
+      toast((err && err.message) || "Could not upload photo", true);
+      clearChatAttach();
+    });
+};
+document.getElementById("chat-attach-clear").onclick = clearChatAttach;
 
 document.getElementById("emoji-panel").onclick = function (e) {
   var btn = e.target.closest("button[data-emoji]");
@@ -2612,10 +2745,12 @@ document.getElementById("form").onsubmit = function (e) {
   e.preventDefault();
   var input = document.getElementById("text");
   var text = input.value.trim();
-  if (!text || !socket) return;
-  socket.emit("message", { text: text });
+  if (!socket) return;
+  if (!text && !pendingChatImageUrl) return;
+  socket.emit("message", { text: text, image_url: pendingChatImageUrl || "" });
   socket.emit("typing", { typing: false });
   input.value = "";
+  clearChatAttach();
   autosizeComposer();
 };
 

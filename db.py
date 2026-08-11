@@ -225,6 +225,8 @@ def _migrate(conn):
         conn.execute("ALTER TABLE messages ADD COLUMN reply_to_id INTEGER")
     if "deleted_at" not in msg_cols:
         conn.execute("ALTER TABLE messages ADD COLUMN deleted_at TEXT")
+    if "image_url" not in msg_cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN image_url TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 
@@ -549,11 +551,15 @@ def message_to_dict(conn, row):
             }
 
     deleted = bool(row["deleted_at"]) if "deleted_at" in row.keys() else False
+    image_url = ""
+    if not deleted and "image_url" in row.keys():
+        image_url = row["image_url"] or ""
     return {
         "id": row["id"],
         "user": row["display_name"],
         "username": row["username"],
         "text": "(message deleted)" if deleted else row["text"],
+        "image_url": image_url,
         "system": bool(row["is_system"]),
         "at": row["created_at"],
         "edited_at": row["edited_at"],
@@ -571,7 +577,7 @@ def channel_history(community_id, channel_id, limit=50, before_id=None):
         rows = conn.execute(
             """
             SELECT id, username, display_name, text, is_system, created_at, edited_at,
-                   reply_to_id, deleted_at
+                   reply_to_id, deleted_at, image_url
             FROM messages
             WHERE community_id = ? AND channel_id = ? AND is_system = 0 AND id < ?
             ORDER BY id DESC
@@ -583,7 +589,7 @@ def channel_history(community_id, channel_id, limit=50, before_id=None):
         rows = conn.execute(
             """
             SELECT id, username, display_name, text, is_system, created_at, edited_at,
-                   reply_to_id, deleted_at
+                   reply_to_id, deleted_at, image_url
             FROM messages
             WHERE community_id = ? AND channel_id = ? AND is_system = 0
             ORDER BY id DESC
@@ -617,10 +623,21 @@ def store_message(
     is_system=False,
     at=None,
     reply_to_id=None,
+    image_url="",
 ):
     from datetime import datetime, timezone
 
+    import uploads as upload_mod
+
     created = at or datetime.now(timezone.utc).isoformat()
+    image_url = (image_url or "").strip()
+    text = (text or "").strip()
+    if image_url and not upload_mod.is_allowed_media_url(image_url):
+        image_url = ""
+    if len(image_url) > 500:
+        image_url = ""
+    if not text and not image_url and not is_system:
+        text = ""
     conn = connect()
     if reply_to_id is not None:
         parent = conn.execute(
@@ -636,8 +653,8 @@ def store_message(
     cur = conn.execute(
         """
         INSERT INTO messages
-            (community_id, channel_id, username, display_name, text, is_system, created_at, reply_to_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (community_id, channel_id, username, display_name, text, is_system, created_at, reply_to_id, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             community_id,
@@ -648,6 +665,7 @@ def store_message(
             1 if is_system else 0,
             created,
             reply_to_id,
+            image_url,
         ),
     )
     msg_id = cur.lastrowid
@@ -655,7 +673,7 @@ def store_message(
     row = conn.execute(
         """
         SELECT id, username, display_name, text, is_system, created_at, edited_at,
-               reply_to_id, deleted_at
+               reply_to_id, deleted_at, image_url
         FROM messages WHERE id = ?
         """,
         (msg_id,),
@@ -1013,16 +1031,16 @@ def create_post(username, display_name, text, image_url=""):
     # posts can be text, an image url, or both (instagram-ish)
     from datetime import datetime, timezone
 
+    import uploads as upload_mod
+
     text = (text or "").strip()
     image_url = (image_url or "").strip()
     if not text and not image_url:
-        return None, "write something or add an image url"
+        return None, "write something or add a photo"
     if len(text) > 280:
         return None, "post is too long (280 max, like X)"
-    if image_url and not (
-        image_url.startswith("http://") or image_url.startswith("https://")
-    ):
-        return None, "image url must start with http:// or https://"
+    if image_url and not upload_mod.is_allowed_media_url(image_url):
+        return None, "use a device photo or an http(s) image link"
     if len(image_url) > 500:
         return None, "image url is too long"
 
@@ -1179,16 +1197,16 @@ def create_story(username, display_name, text="", image_url="", bg_color="#1c212
     # stories last 24 hours then get wiped
     from datetime import datetime, timedelta, timezone
 
+    import uploads as upload_mod
+
     text = (text or "").strip()
     image_url = (image_url or "").strip()
     if not text and not image_url:
-        return None, "add some text or an image url"
+        return None, "add some text or a photo"
     if len(text) > 280:
         return None, "story text is too long (keep it under 280)"
-    if image_url and not (
-        image_url.startswith("http://") or image_url.startswith("https://")
-    ):
-        return None, "image url must start with http:// or https://"
+    if image_url and not upload_mod.is_allowed_media_url(image_url):
+        return None, "use a device photo or an http(s) image link"
     if len(image_url) > 500:
         return None, "image url is too long"
 

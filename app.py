@@ -4,6 +4,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
@@ -11,11 +12,13 @@ from flask_socketio import SocketIO
 
 import db
 import state
+import uploads
 from sockets import register_handlers
 
 load_dotenv()
 
 app = Flask(__name__, static_folder="static")
+app.config["MAX_CONTENT_LENGTH"] = uploads.MAX_BYTES + (512 * 1024)
 _secret = os.getenv("SECRET_KEY", "chatwire-dev")
 app.config["SECRET_KEY"] = _secret
 if _secret == "chatwire-dev":
@@ -163,6 +166,28 @@ def api_ready():
         return jsonify({"status": "ready", "database": "up"})
     except Exception:
         return jsonify({"status": "not_ready", "database": "down"}), 503
+
+
+@app.post("/api/upload")
+def api_upload():
+    username = (request.form.get("username") or "").strip().lower()
+    token = (request.form.get("token") or "").strip()
+    token_user = state.resolve_session_token(token)
+    if not username or not token_user or token_user != username:
+        return jsonify({"error": "login required"}), 401
+    url, err = uploads.save_image(request.files.get("file"))
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify({"ok": True, "url": url})
+
+
+@app.route("/uploads/<path:name>")
+def uploaded_file(name):
+    # only serve files that live directly in the uploads folder
+    safe = Path(name).name
+    if safe != name or ".." in name:
+        return jsonify({"error": "not found"}), 404
+    return send_from_directory(uploads.UPLOAD_DIR, safe)
 
 
 @app.route("/<path:path>")

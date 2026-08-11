@@ -264,9 +264,16 @@ def channel_history(room, before_id=None, limit=50):
     )
 
 
-def store_message(room, username, display_name, text):
+def store_message(room, username, display_name, text, image_url=""):
     community_id, channel_id = room.split(":", 1)
-    return db.store_message(community_id, channel_id, username, display_name, text)
+    return db.store_message(
+        community_id,
+        channel_id,
+        username,
+        display_name,
+        text,
+        image_url=image_url,
+    )
 
 
 def broadcast_presence():

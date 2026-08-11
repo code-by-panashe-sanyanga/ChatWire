@@ -163,10 +163,17 @@
             <p id="typing-indicator" class="typing-indicator" aria-live="polite"></p>
             <form id="form" class="composer">
               <button type="button" id="emoji-toggle" class="composer-tool" title="Emoji">😊</button>
+              <button type="button" id="attach-photo" class="composer-tool" title="Add a photo from this device">📷</button>
+              <input id="chat-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
               <label class="sr-only" for="text">Message</label>
               <textarea id="text" rows="1" autocomplete="off" placeholder="Message #general"></textarea>
               <button type="submit" class="composer-send" title="Send">Send</button>
             </form>
+            <div id="chat-attach-preview" class="attach-preview hidden">
+              <img id="chat-attach-thumb" alt="" />
+              <span id="chat-attach-name">Photo</span>
+              <button type="button" id="chat-attach-clear" class="btn-secondary compact">Remove</button>
+            </div>
             <div id="emoji-panel" class="emoji-panel hidden" role="listbox" aria-label="Emoji">
               <button type="button" data-emoji="👍">👍</button>
               <button type="button" data-emoji="🔥">🔥</button>
@@ -226,7 +233,16 @@
             <div class="avatar sm" id="feed-avatar">?</div>
             <div class="x-compose-main">
               <textarea id="post-text" rows="2" maxlength="280" placeholder="What's happening?"></textarea>
-              <input id="post-image" type="url" placeholder="Image URL (optional)" maxlength="500" />
+              <div class="media-row">
+                <input id="post-image" type="url" placeholder="Image URL (optional)" maxlength="500" />
+                <button type="button" id="post-pick-photo" class="btn-secondary compact">Device photo</button>
+                <input id="post-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
+              </div>
+              <div id="post-attach-preview" class="attach-preview hidden">
+                <img id="post-attach-thumb" alt="" />
+                <span id="post-attach-name">Photo ready</span>
+                <button type="button" id="post-attach-clear" class="btn-secondary compact">Remove</button>
+              </div>
             </div>
           </div>
           <div class="post-composer-tools x-compose-tools">
@@ -382,6 +398,7 @@
         <button type="button" class="status-choice" data-status="away">Away</button>
       </div>
       <label>Status message <input id="status-text-input" type="text" maxlength="60" placeholder="e.g. In a lecture until 3" /></label>
+      <p class="modal-desc">Photos for friends go in Stories (+ next to Stories), not in this status text.</p>
       <div class="modal-actions">
         <button type="button" id="status-cancel" class="btn-secondary">Cancel</button>
         <button type="button" id="status-save" class="btn-primary inline">Save</button>
@@ -395,6 +412,15 @@
       <p class="modal-desc">Friends can see it for 24 hours, then it disappears.</p>
       <label>Text <textarea id="story-text" rows="3" maxlength="280" placeholder="What's going on?"></textarea></label>
       <label>Image URL <input id="story-image" type="url" maxlength="500" placeholder="Optional https://..." /></label>
+      <div class="media-row story-media-row">
+        <button type="button" id="story-pick-photo" class="btn-secondary compact">Device photo</button>
+        <input id="story-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
+      </div>
+      <div id="story-attach-preview" class="attach-preview hidden">
+        <img id="story-attach-thumb" alt="" />
+        <span id="story-attach-name">Photo ready</span>
+        <button type="button" id="story-attach-clear" class="btn-secondary compact">Remove</button>
+      </div>
       <p class="modal-desc">Background (for text-only)</p>
       <div class="story-bg-choices" role="group">
         <button type="button" class="story-bg active" data-bg="#1c212b" style="background:#1c212b" title="Dark"></button>

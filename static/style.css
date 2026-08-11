@@ -1197,6 +1197,61 @@ html[data-theme="light"] .modal {
   word-break: break-word;
 }
 
+.msg-image {
+  display: block;
+  max-width: min(360px, 100%);
+  max-height: 280px;
+  margin-top: 0.45rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
+.media-row {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  margin-top: 0.45rem;
+}
+
+.media-row input[type="url"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.attach-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--elevated);
+}
+
+.attach-preview img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--rail);
+}
+
+.attach-preview span {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.story-media-row {
+  margin: 0.35rem 0 0.75rem;
+}
+
 .msg-text a { color: var(--link); }
 .msg-text code {
   font-family: var(--mono);
@@ -1292,7 +1347,7 @@ html[data-theme="light"] .modal {
 
 .composer {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 0.4rem;
   align-items: end;
   background: var(--elevated);

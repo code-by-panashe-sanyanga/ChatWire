@@ -8,7 +8,7 @@ from flask_socketio import emit
 import db
 import state
 import throttle
-from validate import require_str
+from validate import require_str, optional_str
 
 
 def register(socketio):
@@ -23,13 +23,29 @@ def register(socketio):
             emit("message_error", {"error": "Slow down a bit, too many messages"})
             return
 
-        ok, text = require_str(data or {}, "text", min_len=1, max_len=2000)
-        if not ok:
-            # tell the client instead of failing silently
-            emit("message_error", {"error": text})
+        data = data or {}
+        text = (data.get("text") or "").strip()
+        ok_img, image_url = optional_str(data, "image_url", max_len=500)
+        if not ok_img:
+            emit("message_error", {"error": image_url})
+            return
+        image_url = (image_url or "").strip()
+        if image_url:
+            import uploads as upload_mod
+
+            if not upload_mod.is_allowed_media_url(image_url):
+                emit("message_error", {"error": "invalid image"})
+                return
+        if not text and not image_url:
+            emit("message_error", {"error": "write a message or attach a photo"})
+            return
+        if text and len(text) > 2000:
+            emit("message_error", {"error": "message is too long"})
             return
 
-        msg = state.store_message(info["room"], info["username"], info["user"], text)
+        msg = state.store_message(
+            info["room"], info["username"], info["user"], text, image_url=image_url
+        )
         emit("message", msg, room=info["room"])
 
         # sender is caught up; everyone else gets refreshed unread counts

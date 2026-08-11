@@ -9,6 +9,8 @@ build/
 *.log
 .DS_Store
 data/*.db
+data/uploads/*
+!data/uploads/.gitkeep
 data/users.json
 *.db
 .pytest_cache/

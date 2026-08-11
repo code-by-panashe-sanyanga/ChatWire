@@ -81,14 +81,15 @@ What it deliberately does not cover: two-browser visual confirmation of live del
 
 ## Limitations
 
-Single process: presence, call rooms, and login lockout are in-memory, so they do not share across workers and reset on restart. Meet now WebRTC uses browser peer connections with a Socket.IO signal relay and public STUN only — no TURN — so audio/video can fail on strict NATs while the presence banner still works. There are no file attachments in the shipped UI. Theme and mic/camera preferences are stored in the browser only (`localStorage`), not on the account. `broadcast_presence()` personalises a payload per connected socket, including a per-user friends list, which is fine at demo scale and wasteful beyond it. SQLite is the only database; that is enough for a portfolio demo and not a multi-node chat backend.
+Single process: presence, call rooms, and login lockout are in-memory, so they do not share across workers and reset on restart. Meet now WebRTC uses browser peer connections with a Socket.IO signal relay and public STUN only — no TURN — so audio/video can fail on strict NATs while the presence banner still works. Device photos upload to local disk under `data/uploads/` (jpg/png/gif/webp, 5 MB max); without a Railway volume those files reset on redeploy. Theme and mic/camera preferences are stored in the browser only (`localStorage`), not on the account. `broadcast_presence()` personalises a payload per connected socket, including a per-user friends list, which is fine at demo scale and wasteful beyond it. SQLite is the only database; that is enough for a portfolio demo and not a multi-node chat backend.
 
 ## Future improvements
 
 - Move presence, call rooms, and login lockout into shared store (Redis or similar) so more than one worker can run without losing who is online.
 - Add a TURN server (and screen share) so Meet now media works behind more NATs.
+- Persist uploads on a Railway volume (or object storage) so device photos survive redeploys.
 - Batch friend lookups inside `broadcast_presence()` instead of building a personalised payload per socket on every emit.
-- Add file attachments on messages, and sync theme / media preferences to the account instead of browser-only storage.
+- Sync theme / media preferences to the account instead of browser-only storage.
 - Message and channel search, and Postgres if the demo ever needed more than one node writing at once.
 
 ## Running it
