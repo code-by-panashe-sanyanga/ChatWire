@@ -7,7 +7,7 @@ with Flask-SocketIO.
 
 ![Login](screenshots/Screenshot_19-8-2026_144544_chat-wire-production.up.railway.app.jpeg)
 
-![Chat room](screenshots/Screenshot_19-8-2026_144544_chat-wire-production.up.railway.app.jpeg)
+
 
 ## What the project does
 
