@@ -2,461 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#14110f" />
-  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ChatWire</title>
-  <meta name="description" content="ChatWire: real-time communities and channels" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <script src="theme-boot.js"></script>
+  <!-- Socket.IO client library. It keeps the chat simple for this project. -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
-  <section id="setup" class="setup">
-    <div class="setup-shell">
-      <div class="setup-brand">
-        <div class="brand-mark" aria-hidden="true">CW</div>
-        <h1>ChatWire</h1>
-        <p>Everything that brings people together In one place</p>
-          <li>Chat with friends</li>
-           <li>Join communities</li>
-          <li>Make a calls</li>
-          <li>Share a moment.</li>
-          <li>See what’s happening</li>  
-        <p>Chatwire -  Stay connected without the noise</p>
-        <ul class="setup-perks">
-        </ul>
-      </div>
-      <div class="setup-card">
-        <div class="auth-tabs" role="tablist">
-          <button type="button" id="tab-login" class="auth-tab active" role="tab">Log in</button>
-          <button type="button" id="tab-register" class="auth-tab" role="tab">Register</button>
-        </div>
-
-        <form id="login-form" class="auth-form">
-          <label>Username <input id="login-username" type="text" autocomplete="username" value="demo" /></label>
-          <label>Password <input id="login-password" type="password" autocomplete="current-password" value="demo123456" /></label>
-          <button type="submit" class="btn-primary">Enter ChatWire</button>
-        </form>
-
-        <form id="register-form" class="auth-form hidden">
-          <label>Username <input id="reg-username" type="text" autocomplete="username" maxlength="20" /></label>
-          <label>Display name <input id="reg-display" type="text" autocomplete="nickname" maxlength="32" /></label>
-          <label>Password <input id="reg-password" type="password" autocomplete="new-password" /></label>
-          <button type="submit" class="btn-primary">Create account</button>
-        </form>
-
-        <p id="auth-msg" class="auth-msg" role="status"></p>
-        <p class="setup-hint">Demo: <kbd>demo</kbd> / <kbd>demo123456</kbd> - open two tabs to test live chat</p>
-      </div>
+  <!-- Top bar with the app name and the current room -->
+  <header>
+    <div class="brand">
+      <h1>ChatWire</h1>
+      <p>Real time room chat</p>
     </div>
-  </section>
+    <div class="header-actions">
+      <span id="room-label">Not connected</span>
+      <button id="leave" class="hidden" type="button">Leave</button>
+    </div>
+  </header>
 
-  <div id="app" class="app hidden">
-    <nav class="server-rail" aria-label="Communities">
-      <button type="button" id="open-feed" class="server-icon feed-btn" title="Open timeline">FEED</button>
-      <div class="rail-divider" aria-hidden="true"></div>
-      <div id="server-rail"></div>
-    </nav>
-
-    <aside class="sidebar" aria-label="Channels">
-      <header class="community-header">
-        <button type="button" id="community-menu-btn" class="community-menu-btn" title="Community options">
-          <span id="community-name">Community</span>
-          <span class="chev" aria-hidden="true">▾</span>
-        </button>
-      </header>
-
-      <div class="sidebar-tools">
-        <div id="mobile-community-list" class="mobile-community-list" aria-label="Communities"></div>
-        <button type="button" id="open-switcher" class="search-chip" title="Quick switcher (Ctrl+K)">
-          <span>Find a channel</span>
-          <kbd>⌘K</kbd>
-        </button>
-      </div>
-
-      <div class="sidebar-scroll">
-        <section class="stories-section">
-          <div class="channel-section-head">
-            <h2 class="sidebar-label">Stories</h2>
-            <button type="button" id="add-story-btn" class="btn-icon small" title="Add a story">+</button>
-          </div>
-          <div id="stories-rail" class="stories-rail" aria-label="Friend stories"></div>
-        </section>
-
-        <section class="channel-section">
-          <div class="channel-section-head">
-            <h2 class="sidebar-label">Text channels</h2>
-            <button type="button" id="rename-channel" class="btn-icon small" title="Rename channel">✎</button>
-          </div>
-          <ul id="channel-list" class="channel-list"></ul>
-        </section>
-      </div>
-
-      <footer class="user-panel">
-        <div class="avatar sm" id="my-avatar">?</div>
-        <div class="user-meta">
-          <span id="my-name" class="user-name">-</span>
-          <button type="button" id="status-btn" class="status-text status-btn" title="Change your status">
-            Set status
-          </button>
-        </div>
-        <div class="user-actions">
-          <button type="button" id="open-settings" class="settings-link" title="Settings">Settings</button>
-        </div>
-      </footer>
-    </aside>
-
-    <main class="chat-main">
-      <header class="channel-header">
-        <div class="channel-header-left">
-          <button type="button" id="toggle-sidebar" class="btn-header mobile-only" title="Open menu">Menu</button>
-          <span class="hash">#</span>
-          <div>
-            <div class="channel-title-row">
-              <span id="channel-title">general</span>
-            </div>
-            <p id="channel-topic" class="channel-topic">Welcome</p>
-          </div>
-        </div>
-        <div class="channel-header-actions">
-          <div class="header-search">
-            <input id="message-search" type="search" placeholder="Search this channel" autocomplete="off" />
-          </div>
-          <button type="button" id="header-feed" class="btn-header" title="Open timeline">Timeline</button>
-          <button type="button" id="meet-now" class="btn-header" title="Start or join a channel call">Meet now</button>
-          <button type="button" id="toggle-members" class="btn-header" title="Member list" aria-pressed="true">People</button>
-        </div>
-      </header>
-
-      <div id="call-banner" class="call-banner hidden" role="status">
-        <div class="call-banner-info">
-          <span class="call-live">In call</span>
-          <span id="call-people">Nobody yet</span>
-        </div>
-        <div class="call-banner-actions">
-          <button type="button" id="call-toggle-mic" class="btn-header" title="Mute or unmute mic" aria-pressed="true">Mic on</button>
-          <button type="button" id="call-toggle-cam" class="btn-header" title="Turn camera on or off" aria-pressed="false">Cam off</button>
-          <button type="button" id="leave-call" class="btn-header danger">Leave</button>
-        </div>
-      </div>
-
-      <div id="call-stage" class="call-stage hidden" aria-label="Call video">
-        <div id="call-tiles" class="call-tiles"></div>
-      </div>
-
-      <div class="chat-body">
-        <div class="messages-pane">
-          <div id="welcome-banner" class="welcome-banner">
-            <div class="welcome-hash">#</div>
-            <h2 id="welcome-title">Welcome to #general</h2>
-            <p id="welcome-copy">This is the start of the channel. Say hello.</p>
-          </div>
-          <div id="empty-channel" class="empty-channel hidden">
-            <p class="empty-title">No messages yet</p>
-            <p class="empty-copy">Say hi to start the conversation.</p>
-          </div>
-          <button type="button" id="load-older" class="btn-secondary compact load-older hidden">Load older messages</button>
-          <ul id="log" class="message-log" aria-live="polite"></ul>
-          <div class="composer-wrap">
-            <p id="typing-indicator" class="typing-indicator" aria-live="polite"></p>
-            <form id="form" class="composer">
-              <button type="button" id="emoji-toggle" class="composer-tool" title="Emoji">😊</button>
-              <button type="button" id="attach-photo" class="composer-tool" title="Add a photo from this device">📷</button>
-              <input id="chat-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
-              <label class="sr-only" for="text">Message</label>
-              <textarea id="text" rows="1" autocomplete="off" placeholder="Message #general"></textarea>
-              <button type="submit" class="composer-send" title="Send">Send</button>
-            </form>
-            <div id="chat-attach-preview" class="attach-preview hidden">
-              <img id="chat-attach-thumb" alt="" />
-              <span id="chat-attach-name">Photo</span>
-              <button type="button" id="chat-attach-clear" class="btn-secondary compact">Remove</button>
-            </div>
-            <div id="emoji-panel" class="emoji-panel hidden" role="listbox" aria-label="Emoji">
-              <button type="button" data-emoji="👍">👍</button>
-              <button type="button" data-emoji="🔥">🔥</button>
-              <button type="button" data-emoji="😂">😂</button>
-              <button type="button" data-emoji="❤️">❤️</button>
-              <button type="button" data-emoji="🎉">🎉</button>
-              <button type="button" data-emoji="👀">👀</button>
-              <button type="button" data-emoji="✅">✅</button>
-              <button type="button" data-emoji="🚀">🚀</button>
-            </div>
-            <p class="composer-hint"><kbd>Enter</kbd> to send - <kbd>Shift+Enter</kbd> newline - <kbd>Ctrl+K</kbd> jump</p>
-          </div>
-        </div>
-
-        <aside id="members-panel" class="members-panel" aria-label="Members">
-          <div class="members-mobile-tools">
-            <button type="button" id="meet-now-mobile" class="btn-secondary compact">Meet now</button>
-            <button type="button" id="status-mobile" class="btn-secondary compact">Set status</button>
-          </div>
-          <h2 class="sidebar-label">Online (<span id="online-count">0</span>)</h2>
-          <ul id="online-list" class="member-list"></ul>
-
-          <h2 class="sidebar-label">Friends</h2>
-          <form id="add-friend-form" class="side-form">
-            <input id="friend-username" type="text" placeholder="Add by username" maxlength="20" autocomplete="off" />
-            <button type="submit" class="btn-icon small" title="Add friend">+</button>
-          </form>
-          <ul id="friends-list" class="member-list"></ul>
-
-          <h2 class="sidebar-label">Direct messages</h2>
-          <ul id="dms-list" class="member-list"></ul>
-
-          <h2 class="sidebar-label">Calendar</h2>
-          <form id="add-event-form" class="side-form stacked">
-            <input id="event-title" type="text" placeholder="Event title" maxlength="80" autocomplete="off" />
-            <input id="event-when" type="datetime-local" required />
-            <input id="event-location" type="text" placeholder="Location or link" maxlength="80" autocomplete="off" />
-            <button type="submit" class="btn-secondary compact">Add event</button>
-          </form>
-          <ul id="events-list" class="event-list"></ul>
-        </aside>
-      </div>
-    </main>
-
-    <section id="feed-view" class="feed-view" aria-label="Home timeline">
-      <header class="feed-header x-header">
-        <div class="feed-tabs" role="tablist">
-          <button type="button" class="feed-tab active" id="tab-following" role="tab">Following</button>
-          <button type="button" class="feed-tab" id="tab-foryou" role="tab" disabled title="Friends feed only for now">For you</button>
-        </div>
-        <button type="button" id="close-feed" class="btn-header">Chat</button>
-      </header>
-
-      <div class="feed-scroll x-scroll">
-        <form id="post-form" class="post-composer x-composer">
-          <div class="post-composer-top">
-            <div class="avatar sm" id="feed-avatar">?</div>
-            <div class="x-compose-main">
-              <textarea id="post-text" rows="2" maxlength="280" placeholder="What's happening?"></textarea>
-              <div class="media-row">
-                <input id="post-image" type="url" placeholder="Image URL (optional)" maxlength="500" />
-                <button type="button" id="post-pick-photo" class="btn-secondary compact">Device photo</button>
-                <input id="post-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
-              </div>
-              <div id="post-attach-preview" class="attach-preview hidden">
-                <img id="post-attach-thumb" alt="" />
-                <span id="post-attach-name">Photo ready</span>
-                <button type="button" id="post-attach-clear" class="btn-secondary compact">Remove</button>
-              </div>
-            </div>
-          </div>
-          <div class="post-composer-tools x-compose-tools">
-            <span id="post-count" class="post-count">280</span>
-            <button type="submit" class="btn-primary inline x-post-btn">Post</button>
-          </div>
-        </form>
-
-        <div id="feed-empty" class="feed-empty hidden">
-          <p class="empty-title">Your timeline is empty</p>
-          <p class="empty-copy">Post something, or add friends to see what they share.</p>
-        </div>
-        <div id="feed-list" class="feed-list x-timeline"></div>
-        <button type="button" id="feed-more" class="btn-secondary compact feed-more hidden">Show older posts</button>
-      </div>
+  <main>
+    <!-- This screen shows first. You type your name and a room, then click Join. -->
+    <section id="setup" class="panel">
+      <p class="eyebrow">Socket chat</p>
+      <h2>Join a chat room</h2>
+      <p class="setup-text">Use the same room name in another tab to test messages.</p>
+      <label>
+        Your name
+        <input id="user" placeholder="Panashe" />
+      </label>
+      <label>
+        Room name
+        <input id="room" placeholder="lobby" value="lobby" />
+      </label>
+      <button id="join" type="button">Join room</button>
     </section>
 
-    <div id="mobile-backdrop" class="mobile-backdrop hidden" aria-hidden="true"></div>
-
-    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile">
-      <button type="button" class="mobile-nav-btn active" data-mobile="chat" id="mobile-nav-chat">
-        <span class="mobile-nav-icon">#</span>
-        <span>Chat</span>
-      </button>
-      <button type="button" class="mobile-nav-btn" data-mobile="home" id="mobile-nav-home">
-        <span class="mobile-nav-icon">⌂</span>
-        <span>Timeline</span>
-      </button>
-      <button type="button" class="mobile-nav-btn" data-mobile="people" id="mobile-nav-people">
-        <span class="mobile-nav-icon">◎</span>
-        <span>People</span>
-      </button>
-      <button type="button" class="mobile-nav-btn" data-mobile="menu" id="mobile-nav-menu">
-        <span class="mobile-nav-icon">☰</span>
-        <span>Menu</span>
-      </button>
-    </nav>
-  </div>
-
-  <!-- Quick switcher -->
-  <div id="switcher-modal" class="modal hidden" role="dialog" aria-labelledby="switcher-title">
-    <div class="modal-card switcher-card">
-      <h2 id="switcher-title" class="sr-only">Quick switcher</h2>
-      <input id="switcher-input" type="search" placeholder="Jump to a channel..." autocomplete="off" />
-      <ul id="switcher-results" class="switcher-results"></ul>
-    </div>
-  </div>
-
-  <!-- Rename / profile modals -->
-  <div id="prompt-modal" class="modal hidden" role="dialog" aria-labelledby="prompt-title">
-    <div class="modal-card">
-      <h2 id="prompt-title">Edit</h2>
-      <p id="prompt-desc" class="modal-desc"></p>
-      <label id="prompt-label-1">Name <input id="prompt-input-1" type="text" /></label>
-      <label id="prompt-label-2" class="hidden">Abbr <input id="prompt-input-2" type="text" maxlength="4" /></label>
-      <div class="modal-actions">
-        <button type="button" id="prompt-cancel" class="btn-secondary">Cancel</button>
-        <button type="button" id="prompt-save" class="btn-primary inline">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="password-modal" class="modal hidden" role="dialog" aria-labelledby="password-modal-title">
-    <div class="modal-card">
-      <h2 id="password-modal-title">Change password</h2>
-      <label>Current password <input id="pw-current" type="password" autocomplete="current-password" /></label>
-      <label>New password <input id="pw-new" type="password" autocomplete="new-password" /></label>
-      <label>Confirm <input id="pw-confirm" type="password" autocomplete="new-password" /></label>
-      <p id="pw-msg" class="auth-msg"></p>
-      <div class="modal-actions">
-        <button type="button" id="pw-cancel" class="btn-secondary">Cancel</button>
-        <button type="button" id="pw-save" class="btn-primary inline">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="settings-modal" class="modal hidden" role="dialog" aria-labelledby="settings-modal-title">
-    <div class="modal-card settings-card">
-      <h2 id="settings-modal-title">Settings</h2>
-      <p class="modal-desc">Account and appearance for this browser.</p>
-
-      <div class="settings-row">
+    <!-- The chat area. Hidden until you join. -->
+    <section id="chat" class="panel hidden">
+      <div class="chat-top">
         <div>
-          <strong>Appearance</strong>
-          <p class="settings-hint">Switch between dark and light mode</p>
+          <h2 id="chat-title">Room chat</h2>
+          <p id="chat-status">Connected. Start chatting below.</p>
         </div>
-        <button type="button" id="settings-theme" class="btn-secondary compact" aria-pressed="false">Light mode</button>
       </div>
 
-      <div class="settings-row">
-        <div>
-          <strong>Display name</strong>
-          <p class="settings-hint">How other people see you in chat</p>
-        </div>
-        <button type="button" id="settings-edit-name" class="btn-secondary compact">Edit name</button>
-      </div>
+      <ul id="log"></ul>
 
-      <div class="settings-row">
-        <div>
-          <strong>Password</strong>
-          <p class="settings-hint">Change the password for this account</p>
-        </div>
-        <button type="button" id="settings-password" class="btn-secondary compact">Change password</button>
-      </div>
-
-      <div class="settings-row">
-        <div>
-          <strong>Notification sound</strong>
-          <p class="settings-hint">Play a sound when new messages arrive</p>
-        </div>
-        <button type="button" id="settings-sound" class="btn-secondary compact" aria-pressed="true">On</button>
-      </div>
-
-      <div class="settings-row">
-        <div>
-          <strong>Microphone</strong>
-          <p class="settings-hint" id="settings-mic-hint">Allow mic for Meet now calls</p>
-        </div>
-        <button type="button" id="settings-mic" class="btn-secondary compact" aria-pressed="false">Allow</button>
-      </div>
-
-      <div class="settings-row">
-        <div>
-          <strong>Camera</strong>
-          <p class="settings-hint" id="settings-cam-hint">Allow camera for Meet now calls</p>
-        </div>
-        <button type="button" id="settings-cam" class="btn-secondary compact" aria-pressed="false">Allow</button>
-      </div>
-
-      <div class="settings-row">
-        <div>
-          <strong>Status</strong>
-          <p class="settings-hint">Available, busy, or away for friends</p>
-        </div>
-        <button type="button" id="settings-status" class="btn-secondary compact">Set status</button>
-      </div>
-
-      <div class="modal-actions">
-        <button type="button" id="settings-close" class="btn-primary inline">Done</button>
-      </div>
-    </div>
-  </div>
-
-  <button type="button" id="theme-fab" class="theme-fab" title="Toggle light or dark mode">Light mode</button>
-
-  <div id="status-modal" class="modal hidden" role="dialog" aria-labelledby="status-modal-title">
-    <div class="modal-card">
-      <h2 id="status-modal-title">Your status</h2>
-      <p class="modal-desc">Friends see this next to your name.</p>
-      <div class="status-choices" role="group" aria-label="Presence">
-        <button type="button" class="status-choice" data-status="available">Available</button>
-        <button type="button" class="status-choice" data-status="busy">Busy</button>
-        <button type="button" class="status-choice" data-status="away">Away</button>
-      </div>
-      <label>Status message <input id="status-text-input" type="text" maxlength="60" placeholder="e.g. In a lecture until 3" /></label>
-      <p class="modal-desc">Photos for friends go in Stories (+ next to Stories), not in this status text.</p>
-      <div class="modal-actions">
-        <button type="button" id="status-cancel" class="btn-secondary">Cancel</button>
-        <button type="button" id="status-save" class="btn-primary inline">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="story-modal" class="modal hidden" role="dialog" aria-labelledby="story-modal-title">
-    <div class="modal-card">
-      <h2 id="story-modal-title">Add a story</h2>
-      <p class="modal-desc">Friends can see it for 24 hours, then it disappears.</p>
-      <label>Text <textarea id="story-text" rows="3" maxlength="280" placeholder="What's going on?"></textarea></label>
-      <label>Image URL <input id="story-image" type="url" maxlength="500" placeholder="Optional https://..." /></label>
-      <div class="media-row story-media-row">
-        <button type="button" id="story-pick-photo" class="btn-secondary compact">Device photo</button>
-        <input id="story-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
-      </div>
-      <div id="story-attach-preview" class="attach-preview hidden">
-        <img id="story-attach-thumb" alt="" />
-        <span id="story-attach-name">Photo ready</span>
-        <button type="button" id="story-attach-clear" class="btn-secondary compact">Remove</button>
-      </div>
-      <p class="modal-desc">Background (for text-only)</p>
-      <div class="story-bg-choices" role="group">
-        <button type="button" class="story-bg active" data-bg="#1c212b" style="background:#1c212b" title="Dark"></button>
-        <button type="button" class="story-bg" data-bg="#0f766e" style="background:#0f766e" title="Teal"></button>
-        <button type="button" class="story-bg" data-bg="#1d4ed8" style="background:#1d4ed8" title="Blue"></button>
-        <button type="button" class="story-bg" data-bg="#7c2d12" style="background:#7c2d12" title="Brown"></button>
-        <button type="button" class="story-bg" data-bg="#4c1d95" style="background:#4c1d95" title="Purple"></button>
-        <button type="button" class="story-bg" data-bg="#9f1239" style="background:#9f1239" title="Rose"></button>
-      </div>
-      <div class="modal-actions">
-        <button type="button" id="story-cancel" class="btn-secondary">Cancel</button>
-        <button type="button" id="story-save" class="btn-primary inline">Share story</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="story-viewer" class="story-viewer hidden" role="dialog" aria-label="Story viewer">
-    <div class="story-viewer-inner">
-      <div id="story-progress" class="story-progress"></div>
-      <header class="story-viewer-head">
-        <span id="story-viewer-name">Story</span>
-        <button type="button" id="story-viewer-close" class="btn-header">Close</button>
-      </header>
-      <div id="story-viewer-body" class="story-viewer-body"></div>
-      <button type="button" id="story-prev" class="story-nav prev" aria-label="Previous">‹</button>
-      <button type="button" id="story-next" class="story-nav next" aria-label="Next">›</button>
-    </div>
-  </div>
-
-  <div id="community-menu" class="context-menu hidden" role="menu">
-    <button type="button" id="rename-community" role="menuitem">Rename community</button>
-  </div>
-
-  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+      <form id="form">
+        <input id="text" autocomplete="off" placeholder="Type a message..." />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+  </main>
 
   <script src="app.js"></script>
 </body>

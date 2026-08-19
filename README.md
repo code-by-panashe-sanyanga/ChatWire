@@ -1,112 +1,147 @@
 # ChatWire
 
-Real-time chat with a Discord-style layout. The browser uses JSON HTTP for login and Socket.IO for live messages. Accounts, history, friends, and the feed live in SQLite; who is online stays in memory.
+ChatWire is a small real time chat app. You type your name, pick a room, and
+start chatting with anyone else in that room. Messages show up straight away
+without refreshing the page. It is a learning project to practice WebSockets
+with Flask-SocketIO.
 
-![ChatWire chat UI](screenshots/chat.png)
+![Login](screenshots/Screenshot_19-8-2026_144544_chat-wire-production.up.railway.app.jpeg)
 
-**Live:** [chat-wire-production.up.railway.app](https://chat-wire-production.up.railway.app) · **Stack:** HTML, CSS, JS, Python, Flask, Flask-SocketIO, SQLite
+![Chat room](screenshots/Screenshot_19-8-2026_144544_chat-wire-production.up.railway.app.jpeg)
 
-Demo login: **demo** / **demo123456** (admin account, so rename works in demos)
+## What the project does
 
-## Why
+- Shows a join screen where you enter your name and a room name.
+- Connects to the server using WebSockets so messages are instant.
+- Shows system messages when someone joins or leaves the room.
+- Your own messages appear on the right in blue, other people's on the left.
+- The room name is shown in the header after you join.
 
-I had mostly built request/response HTTP APIs. ChatWire was the place to learn server push, reconnect auth, and permission checks outside a banking context: messages that appear in another browser without a refresh, a session token that survives a reload, and feed/story reads that refuse strangers even when the post id is easy to guess.
+## Why these technologies
 
-## How it works
+- **Python + Flask** for the web server. Same as my other projects, small and
+  easy to follow.
+- **Flask-SocketIO** for the real time part. Normal HTTP is request and response,
+  but chat needs the server to push messages to the browser at any time. SocketIO
+  handles that and also falls back to long polling if WebSockets are not available.
+- **Socket.IO client (CDN)** on the frontend. The library is loaded from a CDN link
+  in the HTML so we do not have to download or bundle it ourselves.
+- **Plain HTML, CSS, and JavaScript** again for the frontend, no React or similar.
 
-```mermaid
-flowchart LR
-  UI[HTML CSS JS] -->|JSON HTTP auth| Flask
-  UI -->|Socket.IO| Sockets
-  Flask --> SQL[(SQLite)]
-  Sockets --> SQL
-  Sockets --> UI
+I use `async_mode="threading"` in the backend so the app runs without installing
+eventlet or gevent. That keeps setup simple and easy to run.
+
+## Folder structure
+
+```
+ChatWire/
+  app.py              the Flask and SocketIO backend
+  requirements.txt    the Python packages the project needs
+  README.md           this file
+  .gitignore          tells git which files to skip
+  static/             all the frontend files
+    index.html        the page you see in the browser
+    style.css         the styling for the page
+    app.js            the JavaScript that connects and sends messages
 ```
 
-Login and password changes go through Flask (`/api/auth/*`). Everything live (messages, typing, reactions, friends, feed, stories, channel calls, presence) goes through Socket.IO handlers under `sockets/`. Durable state is SQLite. `state.sessions` and `state.active_calls` are in-memory maps keyed by socket id / room; they reset on process restart and that is fine for a demo.
+## How to run it
 
-Channel history loads once with cursor pagination (`before_id` / `has_more`), then new events append. Switching rooms does not replay the whole history. Unread counts and DM threads are stored in SQLite (`channel_reads`, `_dm` channels) and pushed over sockets.
+You need Python 3 installed. Open a terminal in the project folder.
 
-```mermaid
-flowchart TD
-  Login[POST /api/auth/login] -->|session token| Browser
-  Browser -->|connect + token| SocketIO
-  SocketIO -->|join room| History[channel_history page]
-  History -->|before_id / has_more| Older[load_older_messages]
-  SocketIO -->|message / react / typing| Peers[other sockets in room]
-  SocketIO -->|feed / stories| FriendsCheck[db friend checks]
-  FriendsCheck --> SQL[(SQLite)]
-```
-
-`app.py` owns HTTP auth, health, and ready. `sockets/` owns the live events. `db.py` is the SQL schema and queries. `state.py` holds online presence, session helpers, and call rooms. `throttle.py` rate-limits write events per connection. `validate.py` checks payloads. `static/` is the UI, including the Ctrl+K channel switcher. `seed.py` loads optional sample data. `tests/` is the pytest suite.
-
-## Decisions
-
-**Socket.IO for live traffic, JSON HTTP for auth.** Login needs a normal request/response and a token the browser can keep. After that, the socket reconnects with the signed token instead of the password. Keeping auth on HTTP means the lockout and password rules sit in one place (`app.py` + `state.py`) and the change-password route reuses the same lockout path as login.
-
-**SQLite for durable data, memory for presence.** Messages, friends, posts, stories, and unreads need to survive a restart. Online status and "who's in this channel call" change every second and do not. That split keeps the demo simple; it also means presence and call banners reset when the process restarts.
-
-**Friends checks in the data layer, not only the UI.** Feed posts and stories are readable or likeable only by the author or their friends. `db.get_post` / `toggle_post_like` / story view helpers return `None` for strangers, so guessing a sequential id is not enough. The UI hiding a button would not have been enough on its own.
-
-**Channel calls use presence plus browser WebRTC.** Meet now still tracks who's in the room via an in-memory `active_calls` map and `call_updated` over Socket.IO. Mic and camera are optional: Settings can allow them, Meet now asks the browser for media, and peers exchange SDP/ICE through a `webrtc_signal` relay. There is STUN only (no TURN), so some restrictive NATs will show presence without audio/video.
-
-**Got wrong: treating feed list filtering as enough privacy.** Early on, the feed query only returned friends' posts, but a direct like / comment / story-view by id still worked for any logged-in user. Post ids are sequential, so that was a real hole. The fix was putting the same friend check on every read and write helper, pinned by the strangers-cannot-access tests.
-
-## Results
-
-What's checkable from the test suite rather than guessed at:
-
-- `pytest -q` collects **24** tests across auth hardening, message handlers, and socket flows.
-- Login returns a signed session token; the socket accepts that token on connect.
-- Password rules reject short / letterless / numberless passwords; five wrong logins trigger a short lockout.
-- Security headers (including CSP) are present on HTTP responses.
-- Cursor pagination: a first history page can report `has_more`, and `load_older_messages` returns the earlier batch.
-- Only the message owner can edit; a non-admin cannot rename a channel; an admin can.
-- Friends-only posts and stories: a stranger cannot read, like, comment, or mark viewed (`test_strangers_cannot_access_friends_only_post`, `test_strangers_cannot_mark_friends_only_story_viewed`).
-
-## The hard bit
-
-Feed and story privacy look fine in the UI until you remember post ids are sequential. Filtering the feed list to friends was not enough: a direct `get_post` / like / comment / story-view by id still worked for anyone who was logged in. The fix was to put the same friend check in every read and write helper in `db.py`, so a missing friendship returns `None` / an error before any mutation. The two strangers-cannot-* tests are what actually pin that down now.
-
-## Testing
+1. Make a virtual environment:
 
 ```bash
-pip install -r requirements-dev.txt
-pytest -q
+python -m venv venv
+venv\Scripts\activate       # on Windows
+# source venv/bin/activate  # on Mac or Linux
 ```
 
-That covers auth hardening, message handlers (including friends-only feed/stories), and socket flows (send, pagination, edit ownership, admin rename, DMs, friends, unreads).
-
-What it deliberately does not cover: two-browser visual confirmation of live delivery, reconnect-after-refresh with the stored token, or Meet now banner sync across tabs. Those stay manual. I also re-check the Railway URL and demo login after each deploy.
-
-## Limitations
-
-Single process: presence, call rooms, and login lockout are in-memory, so they do not share across workers and reset on restart. Meet now WebRTC uses browser peer connections with a Socket.IO signal relay and public STUN only — no TURN — so audio/video can fail on strict NATs while the presence banner still works. Device photos upload to local disk under `data/uploads/` (jpg/png/gif/webp, 5 MB max); without a Railway volume those files reset on redeploy. Theme and mic/camera preferences are stored in the browser only (`localStorage`), not on the account. `broadcast_presence()` personalises a payload per connected socket, including a per-user friends list, which is fine at demo scale and wasteful beyond it. SQLite is the only database; that is enough for a portfolio demo and not a multi-node chat backend.
-
-## Future improvements
-
-- Move presence, call rooms, and login lockout into shared store (Redis or similar) so more than one worker can run without losing who is online.
-- Add a TURN server (and screen share) so Meet now media works behind more NATs.
-- Persist uploads on a Railway volume (or object storage) so device photos survive redeploys.
-- Batch friend lookups inside `broadcast_presence()` instead of building a personalised payload per socket on every emit.
-- Sync theme / media preferences to the account instead of browser-only storage.
-- Message and channel search, and Postgres if the demo ever needed more than one node writing at once.
-
-## Running it
-
-Prereqs: Python 3.12+. Node is not required.
+2. Install the packages:
 
 ```bash
-git clone https://github.com/code-by-panashe-sanyanga/ChatWire.git
-cd ChatWire
-python3 -m venv venv
-source venv/bin/activate   # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+3. Start the app:
+
+```bash
 python app.py
 ```
 
-Open http://localhost:5001. Optional sample data: `python seed.py`.
+4. Open your browser at http://localhost:5001
 
-## Deploy (Railway)
+To test with more than one person, open a second browser tab or window, use a
+different name, and join the same room. You should see messages appear in both tabs.
 
-See `RAILWAY.md`. Set `SECRET_KEY` and `CORS_ORIGINS=*` (Railway sets `PORT`).
+## Frontend files in detail
+
+**static/index.html**
+This has the join form (name and room inputs plus a Join button) and the chat area
+(message list and a form at the bottom). The chat area is hidden until you join.
+The page loads the Socket.IO client from a CDN, then loads `app.js`.
+
+**static/style.css**
+Dark theme styling. The join form is a card in the middle of the page. Messages
+are shown as rounded boxes. Your own messages use the class `mine` and sit on the
+right. System messages are grey and centered.
+
+**static/app.js**
+The main parts are:
+- `addLine(text, isSystem, isMine)` adds one line to the message list and scrolls
+  to the bottom.
+- When you click Join, it connects with `io()`, sends a `join` event to the server,
+  and listens for `message` events coming back.
+- The form submit handler sends your text with a `message` event.
+
+## Backend file in detail
+
+**app.py** runs both the normal web server and the SocketIO server. The important
+parts are:
+- `users` is a small dictionary that maps each connection id to a name and room.
+  We need it so we can announce when someone disconnects.
+- `on_join` puts the user into a SocketIO room and tells everyone they joined.
+- `on_message` receives a chat message and sends it to everyone in that room.
+- `on_disconnect` removes the user and tells the room they left.
+
+SocketIO "rooms" are not physical rooms. They are just a label so the server knows
+which connections should get the same messages.
+
+## About the JSON
+
+SocketIO events carry data as JSON objects. For example a join sends
+`{"user": "alice", "room": "lobby"}` and a chat message sends
+`{"user": "alice", "room": "lobby", "text": "hi"}`. The server then broadcasts
+messages back in a similar shape. JSON is used because it is easy for both Python
+and JavaScript to read.
+
+## About node_modules
+
+This project does not use Node packages. `node_modules` is in `.gitignore` anyway
+because in Node projects that folder is huge and should never be uploaded. You
+commit `requirements.txt` instead and other people run `pip install` themselves.
+The `venv` folder is ignored for the same reason.
+
+## Limitations and possible improvements
+
+- Messages are not saved. If you refresh the page you only see new messages.
+- There is no login, so anyone can use any name.
+- No private messages, only room chat.
+- No list of who is currently in the room.
+- The server runs on threading mode which is fine for a demo but not for hundreds
+  of users at once.
+
+Next steps I would try: store message history in a database, add a user list for
+each room, and add basic password protection for rooms.
+
+## Troubleshooting
+
+- **The page loads but Join does nothing.** Check the terminal for errors. Make
+  sure `flask-socketio` is installed.
+- **Messages do not appear.** Open the browser developer console (F12) and look for
+  connection errors. Both tabs need to join the same room name.
+- **Port 5001 is already in use.** Change the port in the last line of `app.py`.
+- **`ModuleNotFoundError`.** Activate the virtual environment and run
+  `pip install -r requirements.txt` again.
+- **CDN blocked.** The Socket.IO client loads from the internet. If you are offline,
+  download the client file and serve it from the static folder instead.
