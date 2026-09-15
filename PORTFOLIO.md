@@ -4,13 +4,13 @@
 ChatWire
 
 ## One-liner
-Real-time social chat (Flask, Socket.IO, SQLite): Home · Explore · Chat · You, friends-only feed/stories, Clips, Meet now WebRTC.
+Real-time social chat (Flask, Socket.IO, SQLite): started as a room join demo, grew into Home · Explore · Chat · You with accounts, friends-only feed/stories, Clips, and Meet now WebRTC.
 
-## Short description (~40–60 words)
-ChatWire is a single-process social app: live communities and DMs, a Home feed, Explore (For You / Clips / Rooms), and You profiles with private Saved boards. Socket.IO pushes messages and presence; privacy for posts, stories, and Saved lives in the data layer. Optional Meet now uses WebRTC. Live on Railway.
+## Short description (~40 to 60 words)
+ChatWire began as a simple Socket.IO room chat. v2 added accounts, communities, a friends feed, stories, and Meet now. The current UI is Home / Explore / Chat / You, live channels and DMs, For You / Clips, private Saved boards, and profile Follow / Message. Privacy checks sit in the data layer. Live on Railway.
 
 ## Longer blurb (~120 words)
-I built ChatWire to practice real-time systems outside request/response APIs. The product is one shell with four modes—Home, Explore, Chat, and You—covering channels, DMs, a ranked For You feed, short Clips, rooms with votes, 24h stories, and profile Follow / Message. Auth is JSON HTTP with a reconnectable session token; everything live rides Socket.IO. Durable data is SQLite (with a Railway volume for deploys); presence and call rooms stay in memory. The hard lesson was friends-only privacy: filtering list endpoints was not enough when post ids are sequential, so the same visibility checks sit on every read/write helper, covered by pytest. Stack: HTML/CSS/JS, Python, Flask, Flask-SocketIO, SQLite, WebRTC.
+I built ChatWire to practice real-time systems outside request/response APIs. v1 was display-name + room join. v2 replaced that with login, Discord-style communities, a friends-only feed and stories, and Meet now. The latest work reshapes it into Home, Explore, Chat, and You, ranked For You, short Clips, rooms with votes, private Saved, and opening other profiles with Follow / Message. Auth is JSON HTTP with a reconnectable session token; everything live rides Socket.IO. Durable data is SQLite (Railway volume for deploys); presence stays in memory. The hard lesson was friends-only privacy: filtering list endpoints was not enough when post ids are sequential, so the same checks sit on every read/write helper, covered by pytest. Stack: HTML/CSS/JS, Python, Flask, Flask-SocketIO, SQLite, WebRTC.
 
 ## Tech tags
 Python · Flask · Socket.IO · SQLite · WebRTC · HTML/CSS/JS · Railway
@@ -19,3 +19,7 @@ Python · Flask · Socket.IO · SQLite · WebRTC · HTML/CSS/JS · Railway
 - Live: https://chat-wire-production.up.railway.app
 - Repo: https://github.com/code-by-panashe-sanyanga/ChatWire
 - Demo: demo / demo123456
+
+## Screenshots to use
+- v1: `screenshots/join.png`, `screenshots/chat.png`
+- v2: `screenshots/Screenshot_19-8-2026_144544_…jpeg` (login), `…144621…` (chat), `…14466…` (feed)

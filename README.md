@@ -1,22 +1,38 @@
 # ChatWire
 
-Real-time social chat in one shell: **Home** (feed), **Explore** (For You / Clips / Rooms), **Chat** (communities, channels, DMs), and **You** (profile, posts, private Saved). Accounts, history, friends, and posts live in SQLite; presence and Meet now rooms stay in memory. The browser uses JSON HTTP for login and Socket.IO for everything live.
-
-![ChatWire join screen](screenshots/Screenshot_19-8-2026_14466_chat-wire-production.up.railway.app.jpeg)
-
-![ChatWire chat UI](screenshots/Screenshot_19-8-2026_144621_chat-wire-production.up.railway.app.jpeg)
+Real-time chat with a Discord-style layout: communities, channels, DMs, friends, a social feed, 24h stories, and optional Meet now audio/video. The latest pass folds that into four modes, **Home**, **Explore**, **Chat**, and **You**, still one Flask + Socket.IO app, not seven separate clones. Accounts, history, friends, and the feed live in SQLite; who is online stays in memory.
 
 **Live:** [chat-wire-production.up.railway.app](https://chat-wire-production.up.railway.app) · **Stack:** HTML, CSS, JS, Python, Flask, Flask-SocketIO, SQLite, WebRTC
 
-Demo login: **demo** / **demo123456** (admin). Other seeds: `sam` / `sam1234567`, `jordan` / `jordan1234`, `casey` / `casey12345`
+Demo login: **demo** / **demo123456** (admin account, so rename works in demos)
 
-## Portfolio blurb
+Other seeded accounts: `sam` / `sam1234567`, `jordan` / `jordan1234`, `casey` / `casey12345`
 
-> **ChatWire** — a Flask + Socket.IO social app with Home / Explore / Chat / You. Live channels and DMs, friends-only feed and 24h stories, For You ranking, short Clips, rooms with votes, private Saved boards, Meet now (WebRTC), and profile viewing with Follow / Message. Privacy checks sit in the data layer (not only the UI). Deployed on Railway with a durable SQLite volume.
+## Screenshots
 
-Short one-liner for cards:
+### v1: room join chat
 
-> Real-time social chat (Flask, Socket.IO, SQLite): Home · Explore · Chat · You, friends-only feed/stories, Clips, Meet now WebRTC.
+The first version was a single shared room: type a display name, pick a room, messages appear live. No accounts, no history after restart.
+
+![v1 join screen](screenshots/join.png)
+
+![v1 room chat](screenshots/chat.png)
+
+### v2: accounts, communities, feed
+
+v2 replaced the room-name join form with real login, Discord-style communities and channels, a friends feed, stories, and Meet now.
+
+![v2 login](screenshots/Screenshot_19-8-2026_144544_chat-wire-production.up.railway.app.jpeg)
+
+![v2 channel chat](screenshots/Screenshot_19-8-2026_144621_chat-wire-production.up.railway.app.jpeg)
+
+![v2 social feed](screenshots/Screenshot_19-8-2026_14466_chat-wire-production.up.railway.app.jpeg)
+
+## What I changed
+
+**From v1 to v2.** Dropped anonymous “display name + room” join. Added accounts (register / login / session token), SQLite for messages and friends, communities with channels, DMs, a friends-only feed and 24h stories, presence/status, and Meet now. Privacy checks moved into the data layer so guessing a post id is not enough.
+
+**Since v2 (current).** Reshaped the UI into Home / Explore / Chat / You so the product reads as one consumer app. Explore covers For You ranking, Clips, and Rooms. You is a real profile surface (posts, reposts, private Saved boards, stories) and you can open someone else’s profile with Follow / Message. Saved stays owner-only. Device photo/video uploads, quote posts, WebRTC on Meet now (optional TURN), and a Railway volume via `DATA_DIR` so the DB and uploads survive deploys. Hardened secrets on Railway and closed a few Saved/board privacy holes that the UI hide alone would not have fixed.
 
 ## Why
 
@@ -31,16 +47,16 @@ I had mostly built request/response HTTP APIs. ChatWire was the place to learn s
 | **Chat** | Communities, channels, DMs, Meet now / Go live |
 | **You** | Profile, posts/reposts, private Saved, stories; open others’ profiles |
 
-Familiar habits mapped into one product (thin by design):
+Familiar habits mapped into one product (depth is intentionally thin next to the real apps):
 
-| ChatWire | Habit |
-|----------|--------|
-| Hubs / Chat | Discord-style communities & live |
-| Wire / Home | X-style timeline, quotes, trends |
-| Clips | Short vertical video |
-| Pulse | Ephemeral 1:1 snaps (friends, 24h) |
-| Rooms | Community posts + votes |
-| Boards / Saved | Private pin boards (owner only) |
+| ChatWire | Habit it covers |
+|----------|-----------------|
+| Hubs / Chat | Discord communities / channels / live |
+| Wire / Home | X timeline, For You, quotes, trends |
+| Clips | TikTok-style short video |
+| Pulse | Snapchat-style ephemeral 1:1 (friends, 24h) |
+| Rooms | Reddit-style community posts + votes |
+| Boards / Saved | Pinterest-style pins (owner only) |
 | Stories | Instagram-style 24h (friends) |
 
 ## Features
@@ -49,12 +65,13 @@ Familiar habits mapped into one product (thin by design):
 - Direct messages; open profiles from the feed with Follow / Message
 - Online presence and status (available / busy / away)
 - Friends-visible posts and 24h stories; **Saved boards are private** to the owner
-- Meet now channel calls with optional mic/camera (WebRTC; TURN via env)
+- Meet now channel calls with optional mic/camera (WebRTC; `/api/webrtc/ice` supports TURN via env)
 - Go live in a channel + screen share
 - Explore: For You ranking, Clips, Rooms, follows, votes
-- Device photo/video uploads for chat, posts, stories, and Clips
-- Dark / light theme; Ctrl+K channel switcher
-- Login lockout, password rules, per-connection write rate limits
+- Device photo and short-video uploads for chat, timeline, stories, and Clips
+- Dark / light theme toggle
+- Ctrl+K channel switcher
+- Login lockout, password rules, and per-connection write rate limits
 - Admin rename for communities and channels
 - `/api/version` (`4.4.0`) for deploy checks
 
@@ -62,11 +79,11 @@ Familiar habits mapped into one product (thin by design):
 
 ```mermaid
 flowchart LR
-  UI[HTML CSS JS] -->|JSON HTTP auth| Flask
-  UI -->|Socket.IO| Sockets
-  Flask --> SQL[(SQLite)]
-  Sockets --> SQL
-  Sockets --> UI
+ UI[HTML CSS JS] -->|JSON HTTP auth| Flask
+ UI -->|Socket.IO| Sockets
+ Flask --> SQL[(SQLite)]
+ Sockets --> SQL
+ Sockets --> UI
 ```
 
 Login and password changes go through Flask (`/api/auth/*`). Everything live (messages, typing, reactions, friends, feed, stories, channel calls, presence) goes through Socket.IO handlers under `sockets/`. Durable state is SQLite. `state.sessions` and `state.active_calls` are in-memory maps keyed by socket id / room; they reset on process restart and that is fine for a demo.
@@ -75,16 +92,16 @@ Channel history loads once with cursor pagination (`before_id` / `has_more`), th
 
 ```mermaid
 flowchart TD
-  Login[POST /api/auth/login] -->|session token| Browser
-  Browser -->|connect + token| SocketIO
-  SocketIO -->|join room| History[channel_history page]
-  History -->|before_id / has_more| Older[load_older_messages]
-  SocketIO -->|message / react / typing| Peers[other sockets in room]
-  SocketIO -->|feed / stories| FriendsCheck[db friend checks]
-  FriendsCheck --> SQL[(SQLite)]
+ Login[POST /api/auth/login] -->|session token| Browser
+ Browser -->|connect + token| SocketIO
+ SocketIO -->|join room| History[channel_history page]
+ History -->|before_id / has_more| Older[load_older_messages]
+ SocketIO -->|message / react / typing| Peers[other sockets in room]
+ SocketIO -->|feed / stories| FriendsCheck[db friend checks]
+ FriendsCheck --> SQL[(SQLite)]
 ```
 
-`app.py` owns HTTP auth, uploads, health, and ready. `sockets/` owns the live events. `db.py` / `db_ext.py` are the SQL schema and social queries. `state.py` holds online presence, session helpers, and call rooms. `throttle.py` rate-limits write events per connection. `validate.py` checks payloads. `static/` is the UI. `seed.py` loads optional sample data. `tests/` is the pytest suite.
+`app.py` owns HTTP auth, uploads, health, and ready. `sockets/` owns the live events. `db.py` / `db_ext.py` are the SQL schema and social queries. `state.py` holds online presence, session helpers, and call rooms. `throttle.py` rate-limits write events per connection. `validate.py` checks payloads. `static/` is the UI, including the Ctrl+K channel switcher. `seed.py` loads optional sample data. `tests/` is the pytest suite.
 
 ## Decisions
 
@@ -102,7 +119,7 @@ flowchart TD
 
 What's checkable from the test suite rather than guessed at:
 
-- `pytest -q` covers auth hardening, message handlers, socket flows, `db_ext` social/privacy, and Wave helpers (`tests/test_wave.py`) — **38** tests.
+- `pytest -q` covers auth hardening, message handlers, socket flows, `db_ext` social/privacy, and Wave helpers (`tests/test_wave.py`), **38** tests.
 - Login returns a signed session token; the socket accepts that token on connect.
 - Password rules reject short / letterless / numberless passwords; five wrong logins trigger a short lockout.
 - Security headers (including CSP) are present on HTTP responses.
@@ -145,7 +162,7 @@ Prereqs: Python 3.12+. Node is not required.
 git clone https://github.com/code-by-panashe-sanyanga/ChatWire.git
 cd ChatWire
 python3 -m venv venv
-source venv/bin/activate   # Windows: .\venv\Scripts\activate
+source venv/bin/activate  # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 python app.py
 ```
