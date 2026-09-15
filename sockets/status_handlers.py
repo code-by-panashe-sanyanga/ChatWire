@@ -126,4 +126,5 @@ def register(socketio):
         if not db.delete_story(story_id, info["username"]):
             emit("story_error", {"error": "you can only delete your own stories"})
             return
+        emit("story_deleted", {"id": story_id})
         _emit_stories_to_network(socketio, info["username"])

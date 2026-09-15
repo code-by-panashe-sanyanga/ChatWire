@@ -2,60 +2,811 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>ChatWire</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Socket.IO client library. It keeps the chat simple for this project. -->
+  <meta name="description" content="ChatWire — Home, Explore, Chat, You. Real-time social chat with Socket.IO, friends-only feed & stories, Clips, and Meet now." />
+  <meta name="application-version" content="4.4.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=4.4.0" />
+  <script src="theme-boot.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
-  <!-- Top bar with the app name and the current room -->
-  <header>
-    <div class="brand">
-      <h1>ChatWire</h1>
-      <p>Real time room chat</p>
-    </div>
-    <div class="header-actions">
-      <span id="room-label">Not connected</span>
-      <button id="leave" class="hidden" type="button">Leave</button>
-    </div>
-  </header>
+  <section id="setup" class="setup">
+    <div class="setup-shell setup-shell-single">
+      <div class="setup-card">
+        <div class="setup-card-brand">
+          <div class="brand-mark" aria-hidden="true">CW</div>
+          <h1>ChatWire</h1>
+        </div>
+        <div class="auth-tabs" role="tablist">
+          <button type="button" id="tab-login" class="auth-tab active" role="tab">Log in</button>
+          <button type="button" id="tab-register" class="auth-tab" role="tab">Register</button>
+        </div>
 
-  <main>
-    <!-- This screen shows first. You type your name and a room, then click Join. -->
-    <section id="setup" class="panel">
-      <p class="eyebrow">Socket chat</p>
-      <h2>Join a chat room</h2>
-      <p class="setup-text">Use the same room name in another tab to test messages.</p>
-      <label>
-        Your name
-        <input id="user" placeholder="Panashe" />
-      </label>
-      <label>
-        Room name
-        <input id="room" placeholder="lobby" value="lobby" />
-      </label>
-      <button id="join" type="button">Join room</button>
-    </section>
+        <form id="login-form" class="auth-form">
+          <label>Username <input id="login-username" type="text" autocomplete="username" placeholder="demo" /></label>
+          <label>Password <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" /></label>
+          <button type="submit" class="btn-primary">Continue</button>
+        </form>
 
-    <!-- The chat area. Hidden until you join. -->
-    <section id="chat" class="panel hidden">
-      <div class="chat-top">
-        <div>
-          <h2 id="chat-title">Room chat</h2>
-          <p id="chat-status">Connected. Start chatting below.</p>
+        <form id="register-form" class="auth-form hidden">
+          <label>Username <input id="reg-username" type="text" autocomplete="username" maxlength="20" /></label>
+          <label>Display name <input id="reg-display" type="text" autocomplete="nickname" maxlength="32" /></label>
+          <label>Password <input id="reg-password" type="password" autocomplete="new-password" /></label>
+          <button type="submit" class="btn-primary">Create account</button>
+        </form>
+
+        <p id="auth-msg" class="auth-msg" role="status"></p>
+        <p class="setup-hint">Demo <kbd>demo</kbd> / <kbd>demo123456</kbd></p>
+      </div>
+    </div>
+  </section>
+
+  <div id="app" class="app hidden">
+    <nav class="server-rail" aria-label="Main">
+      <button type="button" id="nav-home" class="server-icon home-btn" title="Home" aria-label="Home">
+        <svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10.5 12 4.5l7 6V19a1.5 1.5 0 0 1-1.5 1.5h-3.25v-5.25h-4.5V20.5H6.5A1.5 1.5 0 0 1 5 19v-8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+        <span class="rail-label">Home</span>
+      </button>
+      <button type="button" id="nav-explore" class="server-icon explore-btn" title="Explore" aria-label="Explore">
+        <svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m10.2 10.2 5.1-1.7-1.7 5.1-5.1 1.7 1.7-5.1Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+        <span class="rail-label">Explore</span>
+      </button>
+      <button type="button" id="nav-create" class="server-icon create-btn" title="Create" aria-label="Create">
+        <svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5v11M6.5 12h11" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        <span class="rail-label">Create</span>
+      </button>
+      <button type="button" id="nav-chat" class="server-icon chat-btn" title="Chat" aria-label="Chat">
+        <svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H9.3L6 19.5v-2.55A2.25 2.25 0 0 1 4.5 14.7v-7.95Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+        <span class="rail-label">Chat</span>
+      </button>
+      <button type="button" id="nav-you" class="server-icon you-btn" title="You" aria-label="You">
+        <svg class="rail-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="3.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M6.5 18.25c1.4-2.2 3.2-3.25 5.5-3.25s4.1 1.05 5.5 3.25" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        <span class="rail-label">You</span>
+      </button>
+      <div class="rail-divider" aria-hidden="true"></div>
+      <div id="server-rail" aria-label="Communities"></div>
+    </nav>
+
+    <aside class="sidebar" aria-label="Channels">
+      <header class="community-header">
+        <button type="button" id="community-menu-btn" class="community-menu-btn" title="Community options">
+          <span id="community-name">Community</span>
+          <svg class="icon chev-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </header>
+
+      <div class="sidebar-tools">
+        <div id="mobile-community-list" class="mobile-community-list" aria-label="Communities"></div>
+        <button type="button" id="open-switcher" class="search-chip" title="Quick switcher (Ctrl+K)">
+          <span>Find a channel</span>
+          <kbd>⌘K</kbd>
+        </button>
+      </div>
+
+      <div class="sidebar-scroll">
+        <section class="stories-section">
+          <div class="channel-section-head">
+            <h2 class="sidebar-label">Stories</h2>
+            <button type="button" id="add-story-btn" class="btn-icon small" title="Add a story">+</button>
+          </div>
+          <div id="stories-rail" class="stories-rail" aria-label="Friend stories"></div>
+        </section>
+
+        <section class="channel-section">
+          <div class="channel-section-head">
+            <h2 class="sidebar-label">Channels</h2>
+            <button type="button" id="rename-channel" class="btn-icon small" title="Rename channel" aria-label="Rename channel">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 5.4l4.4 4.4M5 19l.9-4.4L16.1 4.4a1.6 1.6 0 0 1 2.3 0l1.2 1.2a1.6 1.6 0 0 1 0 2.3L9.4 18.1 5 19Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <ul id="channel-list" class="channel-list"></ul>
+        </section>
+      </div>
+
+      <footer class="user-panel">
+        <div class="avatar sm" id="my-avatar">?</div>
+        <div class="user-meta">
+          <span id="my-name" class="user-name">-</span>
+          <button type="button" id="status-btn" class="status-text status-btn" title="Change your status">
+            Set status
+          </button>
+        </div>
+        <div class="user-actions">
+          <button type="button" id="open-settings" class="settings-link" title="Settings">Settings</button>
+        </div>
+      </footer>
+    </aside>
+
+    <main class="chat-main">
+      <header class="channel-header">
+        <div class="channel-header-left">
+          <button type="button" id="toggle-sidebar" class="btn-header mobile-only" title="Open menu">Menu</button>
+          <div>
+            <div class="channel-title-row">
+              <span id="channel-title">general</span>
+              <span id="conn-chip" class="conn-chip offline" title="Connection status">Offline</span>
+            </div>
+            <p id="channel-topic" class="channel-topic">Welcome</p>
+          </div>
+        </div>
+        <div class="channel-header-actions">
+          <button type="button" id="meet-now" class="btn-header" title="Start or join a channel call">Meet</button>
+          <button type="button" id="toggle-members" class="btn-header" title="Member list" aria-pressed="true">People</button>
+          <details class="header-more">
+            <summary class="btn-header" aria-label="More">More</summary>
+            <div class="header-more-menu">
+              <div class="header-search">
+                <input id="message-search" type="search" placeholder="Search this channel" autocomplete="off" />
+              </div>
+              <button type="button" id="channel-pins-btn" class="btn-header" title="Pinned messages" aria-label="Channel pins" aria-expanded="false" aria-controls="channel-pins-panel">Pins</button>
+              <button type="button" id="header-feed" class="btn-header" title="Open Home">Home</button>
+              <button type="button" id="go-live" class="btn-header go-live-btn" title="Start a live session in this channel">Go live</button>
+            </div>
+          </details>
+        </div>
+      </header>
+
+      <div id="channel-pins-panel" class="channel-pins-panel collapsed" aria-label="Pinned messages" hidden>
+        <h2 class="sidebar-label">Pins</h2>
+        <ul id="channel-pins-list" class="channel-pins-list"></ul>
+      </div>
+
+      <div id="live-banner" class="live-banner hidden" role="status">
+        <div class="live-banner-info">
+          <span class="live-pulse" aria-hidden="true"></span>
+          <span class="live-label">LIVE</span>
+          <span id="live-banner-title">Someone is live</span>
+        </div>
+        <div class="live-banner-actions">
+          <button type="button" id="join-live" class="btn-header hidden" title="Join the live call">Join live</button>
+          <button type="button" id="end-live" class="btn-header danger hidden" title="End your live session">End live</button>
         </div>
       </div>
 
-      <ul id="log"></ul>
+      <div id="call-banner" class="call-banner hidden" role="status">
+        <div class="call-banner-info">
+          <span class="call-live">In call</span>
+          <span id="call-people">Nobody yet</span>
+        </div>
+        <div class="call-banner-actions">
+          <button type="button" id="call-toggle-mic" class="btn-header" title="Mute or unmute mic" aria-pressed="true">Mic on</button>
+          <button type="button" id="call-toggle-cam" class="btn-header" title="Turn camera on or off" aria-pressed="false">Cam off</button>
+          <button type="button" id="call-share-screen" class="btn-header" title="Share your screen" aria-pressed="false">Share screen</button>
+          <button type="button" id="leave-call" class="btn-header danger">Leave</button>
+        </div>
+      </div>
 
-      <form id="form">
-        <input id="text" autocomplete="off" placeholder="Type a message..." />
-        <button type="submit">Send</button>
+      <div id="call-stage" class="call-stage hidden" aria-label="Call video">
+        <div id="call-tiles" class="call-tiles"></div>
+      </div>
+
+      <div class="chat-body">
+        <div class="messages-pane">
+          <div id="welcome-banner" class="welcome-banner">
+            <p class="welcome-kicker">Channel</p>
+            <h2 id="welcome-title">Welcome to general</h2>
+            <p id="welcome-copy">This is the start of the channel. Say hello.</p>
+          </div>
+          <div id="empty-channel" class="empty-channel hidden">
+            <p class="empty-title">No messages yet</p>
+            <p class="empty-copy">Say hi to start the conversation.</p>
+          </div>
+          <button type="button" id="load-older" class="btn-secondary compact load-older hidden">Load older messages</button>
+          <ul id="log" class="message-log" aria-live="polite"></ul>
+          <div class="composer-wrap">
+            <p id="typing-indicator" class="typing-indicator" aria-live="polite"></p>
+            <form id="form" class="composer">
+              <button type="button" id="emoji-toggle" class="composer-tool" title="Emoji" aria-label="Emoji">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M8.6 14.2c.9 1.1 2.1 1.7 3.4 1.7s2.5-.6 3.4-1.7M9.2 10.2h.01M14.8 10.2h.01" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+              </button>
+              <button type="button" id="attach-photo" class="composer-tool" title="Add a photo from this device" aria-label="Add photo">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 8.5A2.75 2.75 0 0 1 7.5 5.75h2.1l1.1-1.5h2.6l1.1 1.5h2.1a2.75 2.75 0 0 1 2.75 2.75v7.25A2.75 2.75 0 0 1 16.4 18.5H7.5A2.75 2.75 0 0 1 4.75 15.75V8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><circle cx="12" cy="12.25" r="2.75" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+              </button>
+              <input id="chat-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
+              <label class="sr-only" for="text">Message</label>
+              <textarea id="text" rows="1" autocomplete="off" placeholder="Message general"></textarea>
+              <button type="submit" class="composer-send" title="Send">Send</button>
+            </form>
+            <div id="chat-attach-preview" class="attach-preview hidden">
+              <img id="chat-attach-thumb" alt="" />
+              <span id="chat-attach-name" class="sr-only">Photo</span>
+              <button type="button" id="chat-attach-clear" class="btn-media-icon danger" title="Remove" aria-label="Remove photo">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <div id="emoji-panel" class="emoji-panel hidden" role="listbox" aria-label="Emoji">
+              <button type="button" data-emoji="👍">👍</button>
+              <button type="button" data-emoji="🔥">🔥</button>
+              <button type="button" data-emoji="😂">😂</button>
+              <button type="button" data-emoji="❤️">❤️</button>
+              <button type="button" data-emoji="🎉">🎉</button>
+              <button type="button" data-emoji="👀">👀</button>
+              <button type="button" data-emoji="✅">✅</button>
+              <button type="button" data-emoji="🚀">🚀</button>
+            </div>
+            <p class="composer-hint"><kbd>Enter</kbd> send · <kbd>⇧Enter</kbd> newline</p>
+          </div>
+        </div>
+
+        <aside id="members-panel" class="members-panel" aria-label="Members">
+          <div class="members-mobile-tools">
+            <button type="button" id="meet-now-mobile" class="btn-secondary compact">Meet</button>
+            <button type="button" id="status-mobile" class="btn-secondary compact">Status</button>
+          </div>
+          <div class="members-secondary">
+            <button type="button" id="open-pulse" class="btn-secondary compact">Pulse</button>
+          </div>
+          <h2 class="sidebar-label">Online (<span id="online-count">0</span>)</h2>
+          <ul id="online-list" class="member-list"></ul>
+
+          <section id="friend-requests" class="friend-requests-section">
+            <h2 class="sidebar-label">Friend requests</h2>
+            <ul id="friend-requests-list" class="member-list"></ul>
+          </section>
+
+          <h2 class="sidebar-label">Friends</h2>
+          <form id="add-friend-form" class="side-form">
+            <input id="friend-username" type="text" placeholder="Add by username" maxlength="20" autocomplete="off" />
+            <button type="submit" class="btn-icon small" title="Send friend request">+</button>
+          </form>
+          <ul id="friends-list" class="member-list"></ul>
+
+          <h2 class="sidebar-label">Direct messages</h2>
+          <ul id="dms-list" class="member-list"></ul>
+
+          <h2 class="sidebar-label">Calendar</h2>
+          <form id="add-event-form" class="side-form stacked">
+            <input id="event-title" type="text" placeholder="Event title" maxlength="80" autocomplete="off" />
+            <input id="event-when" type="datetime-local" required />
+            <input id="event-location" type="text" placeholder="Location or link" maxlength="80" autocomplete="off" />
+            <button type="submit" class="btn-secondary compact">Add event</button>
+          </form>
+          <ul id="events-list" class="event-list"></ul>
+        </aside>
+      </div>
+    </main>
+
+    <section id="explore-view" class="explore-view discover-pane" aria-label="Explore" hidden>
+      <header class="explore-header">
+        <h2 class="explore-title">Explore</h2>
+        <div class="explore-tabs" role="tablist" aria-label="Explore tabs">
+          <button type="button" id="explore-tab-foryou" class="explore-tab active" role="tab" aria-selected="true">For you</button>
+          <button type="button" id="explore-tab-clips" class="explore-tab" role="tab" aria-selected="false">Clips</button>
+          <button type="button" id="explore-tab-boards" class="explore-tab" role="tab" aria-selected="false">Boards</button>
+        </div>
+      </header>
+
+      <div id="explore-panel-foryou" class="explore-panel" role="tabpanel"></div>
+
+      <div id="explore-panel-boards" class="explore-panel hidden" role="tabpanel" hidden>
+        <div class="boards-toolbar">
+          <div id="boards-chips" class="boards-chips" role="tablist" aria-label="Boards"></div>
+          <form id="board-create-form" class="rooms-create-form" title="Create a board">
+            <input id="board-name" type="text" placeholder="New board" maxlength="40" autocomplete="off" aria-label="New board name" />
+            <button type="submit" class="btn-header" title="Create board">Add</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="explore-masonry" class="explore-masonry discover-scroll rooms-scroll">
+        <div id="discover-empty" class="feed-empty rooms-empty hidden">
+          <p class="empty-title">No pins yet</p>
+          <p class="empty-copy">Photos and videos from people you know show up here. Save any pin to a board.</p>
+        </div>
+        <div id="boards-grid" class="boards-grid rooms-masonry" aria-label="Pins"></div>
+        <button type="button" id="discover-more" class="btn-secondary compact feed-more hidden">Show more</button>
+      </div>
+
+      <div id="explore-panel-clips" class="explore-panel clips-view hidden" role="tabpanel" hidden>
+        <div id="clips-stage" class="clips-stage" aria-label="Clip stage">
+          <div id="clips-empty" class="feed-empty">
+            <p class="empty-title">No clips yet</p>
+            <p class="empty-copy">Post a short video to get started.</p>
+          </div>
+        </div>
+        <div class="clip-overlay-actions" aria-label="Clip actions">
+          <button type="button" id="clip-like" class="btn-header" aria-label="Like clip">Like</button>
+          <button type="button" id="clip-vote-up" class="btn-header" aria-label="Upvote clip">Up</button>
+          <button type="button" id="clip-vote-down" class="btn-header" aria-label="Downvote clip">Down</button>
+          <span id="clip-score" class="clip-score" aria-label="Clip score">0</span>
+          <button type="button" id="clip-follow" class="btn-header" aria-label="Follow creator">Follow</button>
+          <button type="button" id="clip-save-board" class="btn-header" aria-label="Save clip to board">Save</button>
+        </div>
+        <form id="clip-form" class="clip-form hidden" aria-label="Post a clip">
+          <div class="clip-form-head">
+            <strong>New clip</strong>
+            <button type="button" id="clip-form-close" class="btn-media-icon" title="Close" aria-label="Close">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <textarea id="clip-text" rows="2" maxlength="280" placeholder="Caption" aria-label="Caption"></textarea>
+          <div class="clip-media-row">
+            <button type="button" id="clip-pick-video" class="btn-media-icon" title="Video" aria-label="Add video from device">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.75" y="6.5" width="12.5" height="11" rx="2.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m16.25 10.5 4 2.5-4 2.5V10.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+            </button>
+            <input id="clip-file" class="sr-only" type="file" accept="video/*" />
+            <input id="clip-url" type="url" maxlength="500" placeholder="https://…" aria-label="Video URL" />
+          </div>
+          <div class="clip-form-actions">
+            <button type="button" id="clip-form-cancel" class="btn-secondary">Cancel</button>
+            <button type="submit" class="btn-primary inline">Post</button>
+          </div>
+        </form>
+        <button type="button" id="clips-compose-open" class="btn-header clips-compose-fab" title="New clip" aria-label="New clip">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.75v12.5M5.75 12h12.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <select id="pin-board-id" class="sr-only" tabindex="-1" aria-hidden="true">
+        <option value="">Choose a board</option>
+      </select>
+      <div id="discover-list" class="sr-only" aria-hidden="true"></div>
+      <div id="boards-list" class="sr-only" aria-hidden="true"></div>
+      <div id="board-pins" class="sr-only" aria-hidden="true"></div>
+      <form id="board-pin-form" class="sr-only" aria-hidden="true">
+        <input id="pin-post-id" type="number" />
       </form>
+      <button type="button" id="close-discover" class="sr-only" tabindex="-1" aria-hidden="true">Chat</button>
+      <button type="button" id="close-clips" class="sr-only" tabindex="-1" aria-hidden="true">Chat</button>
     </section>
-  </main>
 
-  <script src="app.js"></script>
+    <section id="feed-view" class="feed-view" aria-label="Home">
+      <header class="feed-header x-header">
+        <div class="wire-brand">
+          <div class="wire-brand-copy">
+            <h2 class="wire-title">Home</h2>
+            <p class="wire-sub">Following and For you</p>
+          </div>
+        </div>
+        <div class="feed-tabs" role="tablist" aria-label="Feed tabs">
+          <button type="button" class="feed-tab active" id="tab-following" role="tab" aria-label="Following">Following</button>
+          <button type="button" class="feed-tab" id="tab-foryou" role="tab" aria-label="For you">For you</button>
+        </div>
+        <div class="feed-header-actions">
+          <button type="button" id="home-create" class="btn-header" title="Create a post">Create</button>
+        </div>
+      </header>
+
+      <div id="trends-row" class="trends-row" aria-label="Trends"></div>
+
+      <div class="feed-scroll x-scroll">
+        <form id="post-form" class="post-composer x-composer">
+          <div class="post-composer-top">
+            <div class="avatar sm" id="feed-avatar">?</div>
+            <div class="x-compose-main">
+              <textarea id="post-text" rows="2" maxlength="280" placeholder="What's happening?"></textarea>
+              <button type="button" id="post-quote-clear" class="btn-secondary compact hidden" hidden>Clear quote</button>
+              <input id="post-image" class="sr-only" type="url" maxlength="500" tabindex="-1" aria-hidden="true" />
+              <input id="post-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
+              <div id="post-attach-preview" class="attach-preview hidden">
+                <img id="post-attach-thumb" alt="" />
+                <span id="post-attach-name" class="sr-only">Photo ready</span>
+                <button type="button" id="post-attach-clear" class="btn-media-icon danger" title="Remove" aria-label="Remove attachment">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="post-composer-tools x-compose-tools">
+            <div class="compose-media-tools" role="group" aria-label="Add media">
+              <button type="button" id="post-pick-photo" class="btn-media-icon" title="Photo" aria-label="Add photo">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 8.5A2.75 2.75 0 0 1 7.5 5.75h2.1l1.1-1.5h2.6l1.1 1.5h2.1a2.75 2.75 0 0 1 2.75 2.75v7.25A2.75 2.75 0 0 1 16.4 18.5H7.5A2.75 2.75 0 0 1 4.75 15.75V8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><circle cx="12" cy="12.25" r="2.75" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+              </button>
+              <button type="button" id="post-pick-video" class="btn-media-icon" title="Video" aria-label="Add video">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.75" y="6.5" width="12.5" height="11" rx="2.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m16.25 10.5 4 2.5-4 2.5V10.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <span id="post-count" class="post-count">280</span>
+            <button type="submit" class="btn-primary inline x-post-btn">Post</button>
+          </div>
+        </form>
+
+        <div id="feed-empty" class="feed-empty hidden">
+          <p class="empty-title">Your timeline is empty</p>
+          <p class="empty-copy">Post something, or add friends to see what they share.</p>
+        </div>
+        <div id="feed-list" class="feed-list x-timeline"></div>
+        <button type="button" id="feed-more" class="btn-secondary compact feed-more hidden">Show older posts</button>
+      </div>
+    </section>
+
+    <section id="you-view" class="you-view" aria-label="You" hidden>
+      <header class="you-header">
+        <button type="button" id="you-back" class="you-back hidden" title="Back" aria-label="Back">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5.5 9 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h2 class="you-title">You</h2>
+      </header>
+      <div class="you-card">
+        <div class="you-avatar-wrap" id="you-avatar-wrap">
+          <button type="button" class="avatar lg you-avatar-btn" id="you-avatar" title="Change photo" aria-label="Change profile photo">?</button>
+          <span class="you-avatar-edit" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M4.75 8.5A2.75 2.75 0 0 1 7.5 5.75h2.1l1.1-1.5h2.6l1.1 1.5h2.1a2.75 2.75 0 0 1 2.75 2.75v7.25A2.75 2.75 0 0 1 16.4 18.5H7.5A2.75 2.75 0 0 1 4.75 15.75V8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><circle cx="12" cy="12.25" r="2.75" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+          </span>
+          <input id="you-avatar-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
+        </div>
+        <div class="you-identity">
+          <h3 id="you-display-name">-</h3>
+          <p id="you-handle" class="you-handle">@-</p>
+          <button type="button" id="you-status" class="you-status" title="Change status">Set status</button>
+        </div>
+        <div class="you-stats" id="you-stats" aria-label="Profile stats">
+          <button type="button" class="you-stat" data-you-tab="posts" id="you-stat-posts">
+            <strong id="you-count-posts">0</strong><span>Posts</span>
+          </button>
+          <button type="button" class="you-stat" data-you-tab="followers" id="you-stat-followers">
+            <strong id="you-count-followers">0</strong><span>Followers</span>
+          </button>
+          <button type="button" class="you-stat" data-you-tab="reposts" id="you-stat-reposts">
+            <strong id="you-count-reposts">0</strong><span>Reposts</span>
+          </button>
+          <button type="button" class="you-stat" data-you-tab="saved" id="you-stat-saved">
+            <strong id="you-count-saved">0</strong><span>Saved</span>
+          </button>
+        </div>
+        <div class="you-highlights" id="you-highlights" aria-label="Stories">
+          <button type="button" class="you-highlight you-highlight-new" id="you-stories" title="New story">
+            <span class="you-highlight-ring"><span class="you-highlight-plus">+</span></span>
+            <span class="you-highlight-label">New</span>
+          </button>
+        </div>
+        <div class="you-actions">
+          <button type="button" id="you-create" class="btn-primary you-action-icon" title="Create" aria-label="Create">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.75v12.5M5.75 12h12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button type="button" id="you-edit-profile" class="btn-secondary">Edit</button>
+          <button type="button" id="you-settings" class="btn-secondary">Settings</button>
+          <button type="button" id="you-follow" class="btn-secondary hidden" hidden>Follow</button>
+          <button type="button" id="you-message" class="btn-primary hidden" hidden>Message</button>
+        </div>
+      </div>
+      <div class="you-tabs" role="tablist" aria-label="Your content">
+        <button type="button" class="you-tab active" id="you-tab-posts" data-you-tab="posts" role="tab" aria-selected="true">Posts</button>
+        <button type="button" class="you-tab" id="you-tab-reposts" data-you-tab="reposts" role="tab" aria-selected="false">Reposts</button>
+        <button type="button" class="you-tab" id="you-tab-saved" data-you-tab="saved" role="tab" aria-selected="false">Saved</button>
+      </div>
+      <div id="you-panel-posts" class="you-panel" role="tabpanel">
+        <div id="you-posts-grid" class="you-posts-grid" aria-label="Your posts"></div>
+        <p id="you-posts-empty" class="you-empty hidden">Nothing posted yet. Create something.</p>
+      </div>
+      <div id="you-panel-reposts" class="you-panel hidden" role="tabpanel" hidden>
+        <div id="you-reposts-grid" class="you-posts-grid" aria-label="Your reposts"></div>
+        <p id="you-reposts-empty" class="you-empty hidden">No reposts yet. Repost from Home to share someone else’s post.</p>
+      </div>
+      <div id="you-panel-saved" class="you-panel hidden" role="tabpanel" hidden>
+        <div id="you-boards-list" class="you-boards-list" aria-label="Your boards"></div>
+        <p id="you-saved-empty" class="you-empty hidden">No boards yet. Save a pin from Explore to start one.</p>
+      </div>
+    </section>
+
+    <section id="pulse-view" class="pulse-view" aria-label="Pulse" hidden>
+      <header class="pulse-header">
+        <div>
+          <h2 class="pulse-title">Pulse</h2>
+          <p class="pulse-sub">Snaps to friends</p>
+        </div>
+        <button type="button" id="close-pulse" class="btn-header">Chat</button>
+      </header>
+
+      <div class="pulse-body">
+        <section id="pulse-inbox" class="pulse-inbox" aria-label="Pulse inbox">
+          <h3 class="sidebar-label">Inbox</h3>
+          <div id="pulse-inbox-list" class="pulse-inbox-list"></div>
+        </section>
+
+        <form id="pulse-form" class="pulse-form" aria-label="Send a pulse">
+          <h3 class="sidebar-label">Send snap</h3>
+          <label for="pulse-to">To
+            <input id="pulse-to" type="text" list="pulse-friends" placeholder="Friend username" maxlength="20" autocomplete="off" />
+            <datalist id="pulse-friends"></datalist>
+          </label>
+          <label for="pulse-text">Message <textarea id="pulse-text" rows="2" maxlength="280" placeholder="Quick snap…"></textarea></label>
+          <label for="pulse-media-url">Media URL <input id="pulse-media-url" type="url" maxlength="500" placeholder="Optional https://..." /></label>
+          <label for="pulse-file">Or file <input id="pulse-file" type="file" accept="image/*,video/*" /></label>
+          <button type="submit" class="btn-primary inline">Send</button>
+        </form>
+
+        <div id="pulse-viewer" class="pulse-viewer hidden" aria-label="Opened snap" role="dialog"></div>
+      </div>
+    </section>
+
+    <div id="mobile-backdrop" class="mobile-backdrop hidden" aria-hidden="true"></div>
+
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile">
+      <button type="button" class="mobile-nav-btn" data-mobile="home" id="mobile-nav-home" aria-label="Home">
+        <svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10.5 12 4.5l7 6V19a1.5 1.5 0 0 1-1.5 1.5h-3.25v-5.25h-4.5V20.5H6.5A1.5 1.5 0 0 1 5 19v-8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+        <span>Home</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile="explore" id="mobile-nav-explore" aria-label="Explore">
+        <svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m10.2 10.2 5.1-1.7-1.7 5.1-5.1 1.7 1.7-5.1Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+        <span>Explore</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile="create" id="mobile-nav-create" aria-label="Create">
+        <svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5v11M6.5 12h11" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        <span>Create</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile="chat" id="mobile-nav-chat" aria-label="Chat">
+        <svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25H9.3L6 19.5v-2.55A2.25 2.25 0 0 1 4.5 14.7v-7.95Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+        <span>Chat</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile="you" id="mobile-nav-you" aria-label="You">
+        <svg class="mobile-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="3.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M6.5 18.25c1.4-2.2 3.2-3.25 5.5-3.25s4.1 1.05 5.5 3.25" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        <span>You</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Post detail: like / comment / repost -->
+  <div id="post-detail-modal" class="modal hidden" role="dialog" aria-labelledby="post-detail-title">
+    <div class="modal-card post-detail-card">
+      <div class="post-detail-head">
+        <h2 id="post-detail-title">Post</h2>
+        <button type="button" id="post-detail-close" class="btn-secondary compact">Close</button>
+      </div>
+      <div id="post-detail-body" class="post-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- Create post / clip -->
+  <div id="create-modal" class="modal hidden" role="dialog" aria-labelledby="create-modal-title">
+    <div class="modal-card create-card">
+      <h2 id="create-modal-title">Create</h2>
+      <textarea id="create-text" maxlength="280" placeholder="What's happening?" rows="4"></textarea>
+      <div class="create-media-row">
+        <button type="button" id="create-pick-photo" class="btn-media-icon" title="Photo" aria-label="Add photo">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 8.5A2.75 2.75 0 0 1 7.5 5.75h2.1l1.1-1.5h2.6l1.1 1.5h2.1a2.75 2.75 0 0 1 2.75 2.75v7.25A2.75 2.75 0 0 1 16.4 18.5H7.5A2.75 2.75 0 0 1 4.75 15.75V8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><circle cx="12" cy="12.25" r="2.75" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+        </button>
+        <button type="button" id="create-pick-video" class="btn-media-icon" title="Video" aria-label="Add video">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.75" y="6.5" width="12.5" height="11" rx="2.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m16.25 10.5 4 2.5-4 2.5V10.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+        </button>
+        <input id="create-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
+      </div>
+      <div id="create-attach-preview" class="attach-preview hidden">
+        <img id="create-attach-thumb" alt="" />
+        <span id="create-attach-name" class="sr-only">Ready</span>
+        <button type="button" id="create-attach-clear" class="btn-media-icon danger" title="Remove" aria-label="Remove attachment">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="create-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="create-submit" class="btn-primary">Post</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save to board picker -->
+  <div id="save-modal" class="modal hidden" role="dialog" aria-labelledby="save-modal-title">
+    <div class="modal-card save-card">
+      <h2 id="save-modal-title">Save to board</h2>
+      <p class="modal-desc">Pick where this pin goes. Open You → Saved anytime to find it again.</p>
+      <div id="save-board-list" class="save-board-list" role="list"></div>
+      <form id="save-board-create" class="save-board-create">
+        <input id="save-board-name" type="text" maxlength="40" placeholder="New board name" autocomplete="off" />
+        <button type="submit" class="btn-secondary">Add board</button>
+      </form>
+      <div class="modal-actions">
+        <button type="button" id="save-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick switcher -->
+  <div id="switcher-modal" class="modal hidden" role="dialog" aria-labelledby="switcher-title">
+    <div class="modal-card switcher-card">
+      <h2 id="switcher-title" class="sr-only">Quick switcher</h2>
+      <input id="switcher-input" type="search" placeholder="Jump to a channel..." autocomplete="off" />
+      <ul id="switcher-results" class="switcher-results"></ul>
+    </div>
+  </div>
+
+  <!-- Rename / profile modals -->
+  <div id="edit-profile-modal" class="modal hidden" role="dialog" aria-labelledby="edit-profile-title">
+    <div class="modal-card edit-profile-card">
+      <h2 id="edit-profile-title">Edit profile</h2>
+      <button type="button" class="edit-profile-avatar-btn" id="edit-profile-avatar" title="Change photo" aria-label="Change profile photo">
+        <span class="avatar lg" id="edit-profile-avatar-face">?</span>
+        <span class="you-avatar-edit" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M4.75 8.5A2.75 2.75 0 0 1 7.5 5.75h2.1l1.1-1.5h2.6l1.1 1.5h2.1a2.75 2.75 0 0 1 2.75 2.75v7.25A2.75 2.75 0 0 1 16.4 18.5H7.5A2.75 2.75 0 0 1 4.75 15.75V8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><circle cx="12" cy="12.25" r="2.75" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+        </span>
+      </button>
+      <p class="edit-profile-hint">Tap photo to change</p>
+      <label>Name <input id="edit-profile-name" type="text" maxlength="32" autocomplete="nickname" /></label>
+      <div class="modal-actions">
+        <button type="button" id="edit-profile-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="edit-profile-save" class="btn-primary inline">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="prompt-modal" class="modal hidden" role="dialog" aria-labelledby="prompt-title">
+    <div class="modal-card">
+      <h2 id="prompt-title">Edit</h2>
+      <p id="prompt-desc" class="modal-desc"></p>
+      <label id="prompt-label-1">Name <input id="prompt-input-1" type="text" /></label>
+      <label id="prompt-label-2" class="hidden">Abbr <input id="prompt-input-2" type="text" maxlength="4" /></label>
+      <div class="modal-actions">
+        <button type="button" id="prompt-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="prompt-save" class="btn-primary inline">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="password-modal" class="modal hidden" role="dialog" aria-labelledby="password-modal-title">
+    <div class="modal-card">
+      <h2 id="password-modal-title">Change password</h2>
+      <label>Current password <input id="pw-current" type="password" autocomplete="current-password" /></label>
+      <label>New password <input id="pw-new" type="password" autocomplete="new-password" /></label>
+      <label>Confirm <input id="pw-confirm" type="password" autocomplete="new-password" /></label>
+      <p id="pw-msg" class="auth-msg"></p>
+      <div class="modal-actions">
+        <button type="button" id="pw-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="pw-save" class="btn-primary inline">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-labelledby="settings-modal-title">
+    <div class="modal-card settings-card">
+      <h2 id="settings-modal-title">Settings</h2>
+      <p class="modal-desc">Account and appearance for this browser.</p>
+
+      <div class="settings-row">
+        <div>
+          <strong>Appearance</strong>
+          <p class="settings-hint">Switch between dark and light mode</p>
+        </div>
+        <button type="button" id="settings-theme" class="btn-secondary compact" aria-pressed="false">Light mode</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Display name</strong>
+          <p class="settings-hint">How other people see you in chat</p>
+        </div>
+        <button type="button" id="settings-edit-name" class="btn-secondary compact">Edit name</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Password</strong>
+          <p class="settings-hint">Change the password for this account</p>
+        </div>
+        <button type="button" id="settings-password" class="btn-secondary compact">Change password</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Notification sound</strong>
+          <p class="settings-hint">Play a sound when new messages arrive</p>
+        </div>
+        <button type="button" id="settings-sound" class="btn-secondary compact" aria-pressed="true">On</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Microphone</strong>
+          <p class="settings-hint" id="settings-mic-hint">Allow mic for Meet now calls</p>
+        </div>
+        <button type="button" id="settings-mic" class="btn-secondary compact" aria-pressed="false">Allow</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Camera</strong>
+          <p class="settings-hint" id="settings-cam-hint">Allow camera for Meet now calls</p>
+        </div>
+        <button type="button" id="settings-cam" class="btn-secondary compact" aria-pressed="false">Allow</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Status</strong>
+          <p class="settings-hint">Available, busy, or away for friends</p>
+        </div>
+        <button type="button" id="settings-status" class="btn-secondary compact">Set status</button>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <strong>Sign out</strong>
+          <p class="settings-hint">Disconnect this browser session</p>
+        </div>
+        <button type="button" id="settings-logout" class="btn-secondary compact danger">Sign out</button>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="settings-close" class="btn-primary inline">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="status-modal" class="modal hidden" role="dialog" aria-labelledby="status-modal-title">
+    <div class="modal-card">
+      <h2 id="status-modal-title">Status</h2>
+      <div class="status-choices" role="group" aria-label="Presence">
+        <button type="button" class="status-choice" data-status="available">Available</button>
+        <button type="button" class="status-choice" data-status="busy">Busy</button>
+        <button type="button" class="status-choice" data-status="away">Away</button>
+      </div>
+      <label class="sr-only" for="status-text-input">Status message</label>
+      <input id="status-text-input" type="text" maxlength="60" placeholder="What’s up?" />
+      <div class="modal-actions">
+        <button type="button" id="status-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="status-save" class="btn-primary inline">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="story-modal" class="modal hidden" role="dialog" aria-labelledby="story-modal-title">
+    <div class="modal-card">
+      <h2 id="story-modal-title">Add a story</h2>
+      <p class="modal-desc">Friends can see it for 24 hours, then it disappears.</p>
+      <label>Text <textarea id="story-text" rows="3" maxlength="280" placeholder="What's going on?"></textarea></label>
+      <div class="media-row story-media-row">
+        <input id="story-image" type="url" maxlength="500" placeholder="https://…" aria-label="Image URL" />
+        <button type="button" id="story-pick-photo" class="btn-media-icon" title="Photo" aria-label="Add photo">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 8.5A2.75 2.75 0 0 1 7.5 5.75h2.1l1.1-1.5h2.6l1.1 1.5h2.1a2.75 2.75 0 0 1 2.75 2.75v7.25A2.75 2.75 0 0 1 16.4 18.5H7.5A2.75 2.75 0 0 1 4.75 15.75V8.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/><circle cx="12" cy="12.25" r="2.75" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+        </button>
+        <input id="story-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
+      </div>
+      <div id="story-attach-preview" class="attach-preview hidden">
+        <img id="story-attach-thumb" alt="" />
+        <span id="story-attach-name" class="sr-only">Photo ready</span>
+        <button type="button" id="story-attach-clear" class="btn-media-icon danger" title="Remove" aria-label="Remove photo">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="modal-desc sr-only">Background</p>
+      <div class="story-bg-choices" role="group">
+        <button type="button" class="story-bg active" data-bg="#1c212b" style="background:#1c212b" title="Dark"></button>
+        <button type="button" class="story-bg" data-bg="#0f766e" style="background:#0f766e" title="Teal"></button>
+        <button type="button" class="story-bg" data-bg="#1d4ed8" style="background:#1d4ed8" title="Blue"></button>
+        <button type="button" class="story-bg" data-bg="#7c2d12" style="background:#7c2d12" title="Brown"></button>
+        <button type="button" class="story-bg" data-bg="#4c1d95" style="background:#4c1d95" title="Purple"></button>
+        <button type="button" class="story-bg" data-bg="#9f1239" style="background:#9f1239" title="Rose"></button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="story-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="story-save" class="btn-primary inline">Share story</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="story-viewer" class="story-viewer hidden" role="dialog" aria-label="Story viewer">
+    <div class="story-viewer-inner">
+      <div id="story-progress" class="story-progress"></div>
+      <header class="story-viewer-head">
+        <span id="story-viewer-name">Story</span>
+        <div class="story-viewer-tools">
+          <button type="button" id="story-viewer-delete" class="btn-header story-delete-btn hidden" title="Delete" aria-label="Delete highlight" hidden>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5v9.25M12 8.5v9.25M15.5 8.5v9.25M6.5 7h11M9.25 7V5.75A1.25 1.25 0 0 1 10.5 4.5h3a1.25 1.25 0 0 1 1.25 1.25V7" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" id="story-viewer-close" class="btn-header" title="Close" aria-label="Close">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </header>
+      <div id="story-viewer-body" class="story-viewer-body"></div>
+      <button type="button" id="story-prev" class="story-nav prev" aria-label="Previous">‹</button>
+      <button type="button" id="story-next" class="story-nav next" aria-label="Next">›</button>
+    </div>
+  </div>
+
+  <div id="community-menu" class="context-menu hidden" role="menu">
+    <button type="button" id="rename-community" role="menuitem">Rename community</button>
+  </div>
+
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <script src="app.js?v=4.4.0"></script>
 </body>
 </html>

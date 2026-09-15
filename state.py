@@ -193,20 +193,22 @@ def verify_user(username, password):
 
 
 def online_users():
-    out = []
+    # One row per username so multi-tab sessions do not duplicate the Online list.
+    by_user = {}
     for info in sessions.values():
-        record = db.get_user(info["username"]) or {}
-        out.append(
-            {
-                "user": info["user"],
-                "username": info["username"],
-                "community": info["community"],
-                "channel": info["channel"],
-                "status": record.get("status") or "available",
-                "status_text": record.get("status_text") or "",
-            }
-        )
-    return out
+        username = info["username"]
+        if username in by_user:
+            continue
+        record = db.get_user(username) or {}
+        by_user[username] = {
+            "user": info["user"],
+            "username": username,
+            "community": info["community"],
+            "channel": info["channel"],
+            "status": record.get("status") or "available",
+            "status_text": record.get("status_text") or "",
+        }
+    return list(by_user.values())
 
 
 def friends_status_for(username):

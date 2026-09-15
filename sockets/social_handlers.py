@@ -133,8 +133,15 @@ def register(socketio):
             emit("event_error", {"error": ends_at})
             return
 
+        event_community = info["community"]
+        if isinstance(data, dict) and data.get("community"):
+            event_community = str(data.get("community")).strip()
+        if not event_community or event_community == "_dm":
+            emit("event_error", {"error": "Pick a community channel before adding an event"})
+            return
+
         event = db.create_event(
-            info["community"],
+            event_community,
             title,
             starts_at,
             info["username"],
@@ -144,7 +151,7 @@ def register(socketio):
         emit("event_created", event)
         socketio.emit(
             "events",
-            {"community": info["community"], "events": db.list_events(info["community"])},
+            {"community": event_community, "events": db.list_events(event_community)},
             room=info["room"],
         )
 

@@ -11,15 +11,19 @@ friendships, events, posts (+ likes/comments for the feed).
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
 BASE = Path(__file__).parent
-DATA_DIR = BASE / "data"
-DB_PATH = DATA_DIR / "chatwire.db"
+# Railway: mount a volume and set DATA_DIR=/data (or CHATWIRE_DATA_DIR)
+_data = (os.getenv("CHATWIRE_DATA_DIR") or os.getenv("DATA_DIR") or "").strip()
+DATA_DIR = Path(_data) if _data else (BASE / "data")
+_db = (os.getenv("CHATWIRE_DB_PATH") or "").strip()
+DB_PATH = Path(_db) if _db else (DATA_DIR / "chatwire.db")
 LAYOUT_SEED = BASE / "communities.json"
 
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def connect():
@@ -207,6 +211,12 @@ def init_db():
     )
     conn.commit()
     conn.close()
+    try:
+        from db_ext import init_ext
+
+        init_ext()
+    except Exception as err:  # pragma: no cover - keep boot resilient
+        print(f"WARNING: db_ext init skipped: {err}")
 
 
 def _migrate(conn):
@@ -219,6 +229,8 @@ def _migrate(conn):
         conn.execute("ALTER TABLE users ADD COLUMN status_text TEXT NOT NULL DEFAULT ''")
     if "is_admin" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+    if "avatar_url" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''")
 
     msg_cols = {r["name"] for r in conn.execute("PRAGMA table_info(messages)").fetchall()}
     if "reply_to_id" not in msg_cols:
@@ -426,7 +438,7 @@ def get_user(username):
     conn = connect()
     row = conn.execute(
         """
-        SELECT username, display_name, password_hash, status, status_text, is_admin
+        SELECT username, display_name, password_hash, status, status_text, is_admin, avatar_url
         FROM users WHERE username = ?
         """,
         (username,),
@@ -437,6 +449,7 @@ def get_user(username):
     data = dict(row)
     data.setdefault("status", "available")
     data.setdefault("status_text", "")
+    data.setdefault("avatar_url", "")
     data["is_admin"] = bool(data.get("is_admin"))
     return data
 
@@ -482,6 +495,30 @@ def update_display_name(username, display_name):
     )
     conn.commit()
     conn.close()
+
+
+def update_avatar(username, avatar_url):
+    """Set or clear profile photo. Empty string clears back to initials."""
+    import uploads
+
+    url = (avatar_url or "").strip()
+    if url:
+        if not uploads.is_allowed_media_url(url):
+            return False, "use a device photo or an http(s) image link"
+        # Reject video uploads for avatars
+        lower = url.lower().split("?", 1)[0]
+        if any(lower.endswith(ext) for ext in (".mp4", ".webm", ".mov")):
+            return False, "profile photo must be an image"
+        if len(url) > 500:
+            return False, "image link is too long"
+    conn = connect()
+    conn.execute(
+        "UPDATE users SET avatar_url = ? WHERE username = ?",
+        (url, username),
+    )
+    conn.commit()
+    conn.close()
+    return True, {"avatar_url": url}
 
 
 def update_password(username, password_hash):

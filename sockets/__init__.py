@@ -2,11 +2,13 @@
 
 from sockets import (
     channel_handlers,
+    discover_handlers,
     message_handlers,
     session_handlers,
     social_handlers,
     status_handlers,
     timeline_handlers,
+    wave_handlers,
 )
 
 
@@ -16,4 +18,6 @@ def register_handlers(socketio):
     message_handlers.register(socketio)
     social_handlers.register(socketio)
     timeline_handlers.register(socketio)
+    discover_handlers.register(socketio)
     status_handlers.register(socketio)
+    wave_handlers.register(socketio)

@@ -2,7 +2,9 @@ from flask import request
 from flask_socketio import emit, join_room
 
 import db
+import db_ext
 import state
+import throttle
 from validate import require_str, optional_str
 
 
@@ -21,20 +23,23 @@ def join_session(display_name, username, community, channel):
     room = state.channel_room(community, channel)
     join_room(room)
 
+    record = db.get_user(username) or {}
+    avatar_url = (record.get("avatar_url") or "").strip()
     state.sessions[request.sid] = {
         "username": username,
         "user": display_name,
         "community": community,
         "channel": channel,
         "room": room,
+        "avatar_url": avatar_url,
     }
 
-    record = db.get_user(username) or {}
     emit(
         "session_ready",
         {
             "user": display_name,
             "username": username,
+            "avatar_url": avatar_url,
             "is_admin": bool(record.get("is_admin")),
             "community": community,
             "channel": channel,
@@ -141,6 +146,26 @@ def register(socketio):
 
         emit("display_name_updated", {"user": new_name})
         socketio.emit("user_renamed", {"old_name": old_name, "new_name": new_name})
+        state.broadcast_presence()
+
+    @socketio.on("avatar_update")
+    def on_avatar_update(data):
+        info = state.sessions.get(request.sid)
+        if not info:
+            return
+        if not throttle.allow(info, "avatar_update", 2.0):
+            emit("profile_error", {"error": "Slow down a bit"})
+            return
+        url = ""
+        if isinstance(data, dict) and data.get("avatar_url") is not None:
+            url = str(data.get("avatar_url") or "").strip()
+        ok, result = db.update_avatar(info["username"], url)
+        if not ok:
+            emit("profile_error", {"error": result})
+            return
+        info["avatar_url"] = result["avatar_url"]
+        emit("avatar_updated", {"username": info["username"], "avatar_url": result["avatar_url"]})
+        emit("profile", db_ext.profile_stats(info["username"], info["username"]))
         state.broadcast_presence()
 
     @socketio.on("disconnect")

@@ -48,11 +48,27 @@ def register(socketio):
             emit("feed_error", {"error": image_url})
             return
 
-        post, err = db.create_post(
+        media_kind = (data.get("media_kind") or "").strip().lower()
+        media_url = (data.get("media_url") or image_url or "").strip()
+        if media_kind not in ("", "text", "image", "video"):
+            media_kind = "image" if media_url else "text"
+        if not media_kind:
+            lower = media_url.lower().split("?")[0]
+            if lower.endswith((".mp4", ".webm", ".mov")):
+                media_kind = "video"
+            elif media_url:
+                media_kind = "image"
+            else:
+                media_kind = "text"
+
+        import db_ext
+
+        post, err = db_ext.create_wave_post(
             info["username"],
             info["user"],
             text or "",
-            image_url or "",
+            image_url=media_url or "",
+            media_kind=media_kind,
         )
         if err:
             emit("feed_error", {"error": err})
