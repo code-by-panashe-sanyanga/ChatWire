@@ -20,17 +20,36 @@ The first version was a single shared room: type a display name, pick a room, me
 
 ### v2: accounts, communities, feed
 
-v2 replaced the room-name join form with real login, Discord-style communities and channels, a friends feed, stories, and Meet now.
+v2 replaced the room-name join form with real login, Discord-style communities and channels, a friends feed, stories, and Meet now. These are the current shots: Home, Explore, Chat, You.
 
-![v2 login](screenshots/Screenshot_19-8-2026_144544_chat-wire-production.up.railway.app.jpeg)
+![v2 Home timeline](screenshots/chatwire-v2-home.png)
 
-![v2 channel chat](screenshots/Screenshot_19-8-2026_144621_chat-wire-production.up.railway.app.jpeg)
+![v2 Explore media wall](screenshots/chatwire-v2-explore.png)
 
-![v2 social feed](screenshots/Screenshot_19-8-2026_14466_chat-wire-production.up.railway.app.jpeg)
+![v2 Chat with communities, stories and DMs](screenshots/chatwire-v2-chat.png)
+
+![v2 You profile with private Saved](screenshots/chatwire-v2-you.png)
+
+![v2 login](screenshots/chatwire-v2-login.png)
+
+The earlier v2 shots from the Railway demo are still in `screenshots/` if you want the interim look: `Screenshot_19-8-2026_144544…`, `…144621…`, `…14466…`.
 
 ## What I changed
 
 **From v1 to v2.** Dropped anonymous “display name + room” join. Added accounts (register / login / session token), SQLite for messages and friends, communities with channels, DMs, a friends-only feed and 24h stories, presence/status, and Meet now. Privacy checks moved into the data layer so guessing a post id is not enough.
+
+| Area | v1 | v2 (current) |
+|------|----|--------------|
+| Getting in | Display name plus room name, no accounts | Register / login, bcrypt, signed session token, lockout |
+| Shape | One shared room per page | Home, Explore, Chat, You in one shell |
+| Messaging | Broadcast to the room | Communities, channels, pins, DMs, typing, reactions, edit |
+| Social | None | Following / For You timeline, quotes, reposts, stories, follows, Rooms with votes |
+| Media | Text only | Device photo and short video uploads, Clips, saved boards |
+| Profiles | Display name only | Avatar, status, posts, reposts, highlights, private Saved, Follow / Message |
+| Calls | None | Meet now with mic, camera, screen share over WebRTC |
+| Privacy | Everything in the room was public | Friend and visibility checks on every read/write helper |
+| Storage | In memory, gone on restart | SQLite plus uploads on a mounted volume (`DATA_DIR`) |
+| Tests | Manual | 38 pytest tests across auth, sockets, feed, stories, Saved |
 
 **Since v2 (current).** Reshaped the UI into Home / Explore / Chat / You so the product reads as one consumer app. Explore covers For You ranking, Clips, and Rooms. You is a real profile surface (posts, reposts, private Saved boards, stories) and you can open someone else’s profile with Follow / Message. Saved stays owner-only. Device photo/video uploads, quote posts, WebRTC on Meet now (optional TURN), and a Railway volume via `DATA_DIR` so the DB and uploads survive deploys. Hardened secrets on Railway and closed a few Saved/board privacy holes that the UI hide alone would not have fixed.
 

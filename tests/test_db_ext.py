@@ -108,7 +108,7 @@ def test_version_and_ice_routes():
     v = client.get("/api/version")
     assert v.status_code == 200
     body = v.get_json()
-    assert body["version"] == "4.4.0"
+    assert body["version"] == "4.5.0"
     assert body.get("codename") == "wave"
     ice = client.get("/api/webrtc/ice")
     assert ice.status_code == 200

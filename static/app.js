@@ -1319,7 +1319,9 @@ function renderPresence(data) {
       removeBtn.type = "button";
       removeBtn.className = "btn-icon small friend-remove";
       removeBtn.title = "Remove friend";
-      removeBtn.textContent = "×";
+      removeBtn.setAttribute("aria-label", "Remove " + f.name + " from friends");
+      removeBtn.innerHTML =
+        '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="9.25" r="3.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M4.75 18.75c0-2.35 2.35-4.25 5.25-4.25 1.2 0 2.3.33 3.2.88M15.5 15.5h4.25" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>';
       removeBtn.onclick = function (e) {
         e.stopPropagation();
         if (!socket) return;
@@ -1332,7 +1334,9 @@ function renderPresence(data) {
       blockBtn.type = "button";
       blockBtn.className = "btn-icon small friend-block";
       blockBtn.title = "Block";
-      blockBtn.textContent = "⊘";
+      blockBtn.setAttribute("aria-label", "Block " + f.name);
+      blockBtn.innerHTML =
+        '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.25" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M7.1 16.9 16.9 7.1" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>';
       blockBtn.onclick = function (e) {
         e.stopPropagation();
         blockUser(f.username);
@@ -1343,7 +1347,9 @@ function renderPresence(data) {
       reportBtn.type = "button";
       reportBtn.className = "btn-icon small friend-report";
       reportBtn.title = "Report";
-      reportBtn.textContent = "!";
+      reportBtn.setAttribute("aria-label", "Report " + f.name);
+      reportBtn.innerHTML =
+        '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.25 19.25V5.25h7.1l.9 1.6h3.5v6.9h-4.1l-.9-1.6H6.25" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       reportBtn.onclick = function (e) {
         e.stopPropagation();
         reportUser(f.username);

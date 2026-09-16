@@ -1028,6 +1028,8 @@ def create_wave_post(
         return None, "media_kind must be text, image, or video"
     if media_kind == "video" and not image_url:
         return None, "video clips need a media url"
+    if not text and not image_url and not quote_of:
+        return None, "write something or attach a photo"
     if len(text) > 280:
         return None, "post is too long (280 max)"
     if image_url and not upload_mod.is_allowed_media_url(image_url):

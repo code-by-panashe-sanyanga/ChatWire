@@ -1363,17 +1363,46 @@ kbd {
   padding: 0;
 }
 
-.friend-row {
+.member-row.friend-row {
   cursor: pointer;
   position: relative;
-  padding-right: 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.3rem;
+}
+
+.member-row.friend-row .dot {
+  flex: 0 0 auto;
+}
+
+.member-row.friend-row .member-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.member-row.friend-row .status-chip {
+  flex: 0 0 100%;
+  order: 9;
+  padding-left: 0.8rem;
+}
+
+.member-row.friend-row .btn-icon.small {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.member-row.friend-row .btn-icon.small .icon {
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
 .friend-remove {
-  position: absolute;
-  right: 0.25rem;
-  top: 50%;
-  transform: translateY(-50%);
   opacity: 0.55;
 }
 

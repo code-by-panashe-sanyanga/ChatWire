@@ -1027,6 +1027,31 @@ def list_dm_threads(username):
     return out
 
 
+def _quote_stub(conn, quote_of):
+    """Small copy of the quoted post so reposts never render as empty cards."""
+    if not quote_of:
+        return None
+    try:
+        qid = int(quote_of)
+    except (TypeError, ValueError):
+        return None
+    row = conn.execute(
+        "SELECT id, username, display_name, text, image_url, media_kind FROM posts WHERE id = ?",
+        (qid,),
+    ).fetchone()
+    if not row:
+        return None
+    keys = row.keys()
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "user": row["display_name"],
+        "text": row["text"],
+        "image_url": row["image_url"] or "",
+        "media_kind": row["media_kind"] if "media_kind" in keys else "image",
+    }
+
+
 def _post_to_dict(conn, row, viewer_username):
     post_id = row["id"]
     likes = conn.execute(
@@ -1042,12 +1067,18 @@ def _post_to_dict(conn, row, viewer_username):
         """,
         (post_id,),
     ).fetchall()
+    row_keys = row.keys()
+    quote_of = row["quote_of"] if "quote_of" in row_keys else None
+    media_kind = row["media_kind"] if "media_kind" in row_keys else ""
     return {
         "id": post_id,
         "username": row["username"],
         "user": row["display_name"],
         "text": row["text"],
         "image_url": row["image_url"] or "",
+        "media_kind": media_kind or ("image" if (row["image_url"] or "") else "text"),
+        "quote_of": _quote_stub(conn, quote_of),
+        "quote_of_id": quote_of,
         "at": row["created_at"],
         "like_count": len(like_users),
         "liked_by_me": viewer_username in like_users,
@@ -1108,7 +1139,8 @@ def list_feed(viewer_username, limit=30, before_id=None):
     conn = connect()
     params = list(authors)
     sql = f"""
-        SELECT id, username, display_name, text, image_url, created_at
+        SELECT id, username, display_name, text, image_url, created_at,
+               media_kind, quote_of
         FROM posts
         WHERE username IN ({placeholders})
     """

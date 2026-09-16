@@ -179,7 +179,7 @@ def api_change_password():
 @app.route("/api/version")
 def api_version():
     return jsonify(
-        {"version": "4.4.0", "product": "ChatWire", "codename": "wave"}
+        {"version": "4.5.0", "product": "ChatWire", "codename": "wave"}
     )
 
 
